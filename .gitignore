@@ -5,3 +5,4 @@ __pycache__/
 atombase.log
 atom_workspace/
 *.DS_Store
+AtomBase/prompts/supervisor.txt
