@@ -1,0 +1,18 @@
+{
+  "supervisor": {
+    "fallbacks": [
+      {
+        "provider": "openrouter",
+        "model": "amazon/nova-2-lite-v1:free"
+      },
+      {
+        "provider": "groq",
+        "model": "llama-3.1-8b-instant"
+      },
+      {
+        "provider": "cerebras",
+        "model": "llama3.1-8b"
+      }
+    ]
+  }
+}

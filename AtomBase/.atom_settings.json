@@ -1,0 +1,9 @@
+{
+  "models": {
+    "supervisor": {
+      "provider": "google",
+      "model": "gemini-3-flash-preview",
+      "temperature": 0.1
+    }
+  }
+}

@@ -1,0 +1,14 @@
+# Sensitive Data
+.env
+
+# Python
+__pycache__/
+*.pyc
+
+# Project Specific
+.atom_checkpoints/
+atom_workspace/
+atombase.log
+
+# System
+.DS_Store

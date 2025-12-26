@@ -1,0 +1,122 @@
+[
+  {
+    "timestamp": "2025-12-25T23:26:16.642189",
+    "date": "2025-12-25 23:26",
+    "notes": "Hafifçe başını salladı. Durum sabit.",
+    "attributes": {}
+  },
+  {
+    "timestamp": "2025-12-25T23:38:33.043356",
+    "date": "2025-12-25 23:38",
+    "notes": "Başını eline yaslamış, dalgın veya düşünceli görünüyor. Pozisyon değişti.",
+    "attributes": {}
+  },
+  {
+    "timestamp": "2025-12-25T23:39:34.279174",
+    "date": "2025-12-25 23:39",
+    "notes": "Kullanıcı ekran paylaşımı sırasında önemli bir değişiklik olduğunu belirtti. Yeni bir uygulamaya veya ekrana geçiş yapılmış olabilir.",
+    "attributes": {}
+  },
+  {
+    "timestamp": "2025-12-25T23:41:58.020495",
+    "date": "2025-12-25 23:41",
+    "notes": "Uzanmış, yastıkta, rahat görünüyor.",
+    "attributes": {}
+  },
+  {
+    "timestamp": "2025-12-25T23:50:04.386489",
+    "date": "2025-12-25 23:50",
+    "notes": "Uzanmış, yastıkta, rahat bir pozisyonda görünüyor.",
+    "attributes": {}
+  },
+  {
+    "timestamp": "2025-12-26T00:06:05.079566",
+    "date": "2025-12-26 00:06",
+    "notes": "Kullanıcı Akif, gözlüklü, dağınık kahverengi saçlı, sakallı. Beyaz bir odada gibi görünüyor.",
+    "attributes": {}
+  },
+  {
+    "timestamp": "2025-12-26T00:08:29.500014",
+    "date": "2025-12-26 00:08",
+    "notes": "Kullanıcı doğruldu.",
+    "attributes": {}
+  },
+  {
+    "timestamp": "2025-12-26T00:21:44.299795",
+    "date": "2025-12-26 00:21",
+    "notes": "Kullanıcı yastıkta uzanıyor, yorgun görünüyor.",
+    "attributes": {}
+  },
+  {
+    "timestamp": "2025-12-26T00:24:01.428737",
+    "date": "2025-12-26 00:24",
+    "notes": "Kullanıcı pozisyon değiştirdi, ellerini başının arkasından çekti.",
+    "attributes": {}
+  },
+  {
+    "timestamp": "2025-12-26T00:26:55.508450",
+    "date": "2025-12-26 00:26",
+    "notes": "Kullanıcı yorgun görünüyor ve uzanıyor. Dinlenme halinde.",
+    "attributes": {}
+  },
+  {
+    "timestamp": "2025-12-26T00:39:55.321511",
+    "date": "2025-12-26 00:39",
+    "notes": "Kullanıcı yorgun görünüyordu, hatırlatıcıyı reddetti ve kulağına bir kulaklık (earbud) taktı.",
+    "attributes": {}
+  },
+  {
+    "timestamp": "2025-12-26T01:15:12.651240",
+    "date": "2025-12-26 01:15",
+    "notes": "Kullanıcı uykuya daldı. Yorucu bir günün ardından dinleniyor.",
+    "attributes": {}
+  },
+  {
+    "timestamp": "2025-12-26T01:16:37.954027",
+    "date": "2025-12-26 01:16",
+    "notes": "Kullanıcı tekrar uykuya daldı gibi görünüyor. Gözleri kapalı ve hareketsiz.",
+    "attributes": {}
+  },
+  {
+    "timestamp": "2025-12-26T01:18:24.414251",
+    "date": "2025-12-26 01:18",
+    "notes": "Kullanıcı yatakta, yorgun veya rahatlamış görünüyor.",
+    "attributes": {}
+  },
+  {
+    "timestamp": "2025-12-26T01:20:11.939230",
+    "date": "2025-12-26 01:20",
+    "notes": "Kullanıcı gözlerini kapattı, uykuya dalıyor gibi görünüyor.",
+    "attributes": {}
+  },
+  {
+    "timestamp": "2025-12-26T01:20:19.952441",
+    "date": "2025-12-26 01:20",
+    "notes": "Kullanıcı gözlerini kapattı ve uykuya dalmış veya derin dinlenme haline geçmiş gibi görünüyor.",
+    "attributes": {}
+  },
+  {
+    "timestamp": "2025-12-26T01:22:53.966492",
+    "date": "2025-12-26 01:22",
+    "notes": "Kullanıcı VS Code'da Python kodu üzerinde çalışıyor.",
+    "attributes": {}
+  },
+  {
+    "timestamp": "2025-12-26T01:24:44.094855",
+    "date": "2025-12-26 01:24",
+    "notes": "Kullanıcı yatakta uzanıyor gibi görünüyor, yorgun bir ifadesi var ve aşağı doğru bakıyor.",
+    "attributes": {}
+  },
+  {
+    "timestamp": "2025-12-26T01:25:28.442549",
+    "date": "2025-12-26 01:25",
+    "notes": "Kullanıcı uyku modunda, gözleri kapalı. Ekranda VS Code ve sağda notlar açık. Proaktif olarak bir hatırlatıcı kuruyorum.",
+    "attributes": {}
+  },
+  {
+    "timestamp": "2025-12-26T01:28:36.092458",
+    "date": "2025-12-26 01:28",
+    "notes": "Kullanıcı uzanmış, yorgun görünüyor, gri üst ve tek siyah kulaklık takıyor.",
+    "attributes": {}
+  }
+]
