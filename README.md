@@ -2,8 +2,6 @@
 
 **Atomik**, sıradan bir sesli asistan değil, **"Ruhu Olan Dijital Bir Yoldaş"**tır. Sadece komutları yerine getirmekle kalmaz, sizi kameradan izler, duygusal durumunuzu analiz eder, ekranınızı görür ve sizinle doğal, samimi bir ses tonuyla sohbet eder. Bir "Companion" (Yoldaş) yapay zekasıdır.
 
-![Atomik Banner](https://via.placeholder.com/800x200?text=ATOMIK+AI+Companion)
-
 ## 🌟 Öne Çıkan Özellikler
 
 *   **🎙️ Doğal Sesli İletişim:** Metin tabanlı değil, tamamen sesli ve akıcı bir iletişim kurar. "Şey...", "Hımm..." gibi insani dolgular kullanarak robotik hissi kırar.
@@ -45,11 +43,3 @@ Proje modüler bir yapıya sahiptir:
 *   **AtomBase:** Sistemin beyni (LLM orkestrasyonu).
 *   **Audio/Video:** Görüntü işleme, ses tanıma (STT) ve konuşma (TTS) modülleri.
 *   **Tools:** Bilgisayar kontrolü, dosya işlemleri ve hafıza araçları.
-
-## 🤝 Katkıda Bulunma
-
-Pull request'ler kabul edilir. Büyük değişiklikler için önce lütfen bir issue açarak tartışın.
-
-## 📜 Lisans
-
-[MIT](LICENSE)
