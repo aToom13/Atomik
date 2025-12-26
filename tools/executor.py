@@ -28,6 +28,7 @@ if _atombase_path not in sys.path:
 
 try:
     from AtomBase.tools.basic import get_current_time, run_neofetch
+    from AtomBase.tools.location import get_current_location
     from AtomBase.tools.files import list_files, read_file, write_file, scan_workspace
     from AtomBase.tools.execution import run_terminal_command
     from AtomBase.tools.coding import delegate_coding, save_generated_code
@@ -57,6 +58,13 @@ def execute_tool(name: str, args: dict) -> str:
     try:
         if name == "get_current_time":
             return get_current_time.invoke({})
+        elif name == "get_current_location":
+            import json
+            # Use cached location if available (fetched at startup)
+            if state.cached_location:
+                return json.dumps(state.cached_location, ensure_ascii=False)
+            result = get_current_location.invoke({})
+            return json.dumps(result, ensure_ascii=False)
         elif name == "list_files":
             return list_files.invoke({"directory": args.get("directory", ".")})
         elif name == "read_file":

@@ -14,6 +14,7 @@ from utils.logger import get_logger
 from tools.files import write_file, read_file, list_files
 from tools.execution import run_terminal_command
 from tools.basic import run_neofetch, get_current_time
+from tools.location import get_current_location
 # from tools.memory import ... # Need to verify memory tool dependencies
 
 logger = get_logger()
@@ -22,7 +23,8 @@ _memory_saver = MemorySaver()
 _tools = [
     write_file, read_file, list_files,
     run_terminal_command,
-    run_neofetch, get_current_time
+    run_neofetch, get_current_time,
+    get_current_location
 ]
 
 def get_agent_executor():

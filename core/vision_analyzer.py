@@ -39,12 +39,14 @@ Gerçekten konuşmaya değer, bariz ve önemli durumlar.
 *   Ekranda KRİTİK bir hata mesajı belirdi (kırmızı uyarılar).
 *   Kullanıcı çok belirgin bir şekilde el sallıyor veya dikkat çekmeye çalışıyor.
 *   Çok uzun süredir stabil dururken aniden çok büyük bir değişim oldu (örn: uyuyordu, birden sıçradı).
-*   Kullanıcıda belirgin bir DUYGU/DURUM değişimi var (örn: çalışırken yorgunluktan masaya yığıldı, çok uykulu görünüyor). -> Atomik buna "İstersen uyandırayım" diyebilir.
-*   Kullanıcı işe/ders çalışmaya gömüldü (derin odaklanma). -> Atomik "Rahatsız etmeme modunu açayım mı?" diyebilir.
+*   Kullanıcı MASAYA YIĞILDI veya BAYILDI (Acil durum).
+*   Kullanıcı uzun süre hareketsiz kaldıktan sonra UYANDI (Gözlerini açtı, gerindi).
 
 ### 2. [MEMORY] - Sadece Hafızaya Atılacaklar
 Görülmesi gereken ama üzerine konuşulması ŞART olmayan durumlar. Sessizce not edilmeli.
-*   Kullanıcı telefonunu eline aldı. (Gereksiz konuşma!)
+*   Kullanıcı gözlerini kapattı (Düşünüyor veya dinleniyor olabilir - RAHATSIZ ETME).
+*   Kullanıcı yatakta/koltukta uzanıyor (Sohbet ediyorsa bu UYKU değildir).
+*   Kullanıcı telefonunu eline aldı.
 *   Kullanıcı su içti.
 *   Kullanıcı pozisyon değiştirdi (oturdu, yattı, bacak bacak üstüne attı).
 *   Kullanıcı ekranda uygulama değiştirdi (VS Code -> Browser).

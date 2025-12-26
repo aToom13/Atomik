@@ -2,6 +2,7 @@ import asyncio
 import os
 import pyaudio
 import sys
+import subprocess
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -16,8 +17,29 @@ CHUNK_SIZE = 512
 class AudioHandler:
     def __init__(self):
         self.pya = pyaudio.PyAudio()
+        self.setup_echo_cancellation()
         self.input_stream = None
         self.output_stream = None
+
+    def setup_echo_cancellation(self):
+        """Loads the echo-cancel module and sets it as default."""
+        try:
+            # Check if module is loaded
+            check_cmd = "pactl list modules short | grep module-echo-cancel"
+            result = subprocess.run(check_cmd, shell=True, stdout=subprocess.PIPE)
+            if not result.stdout:
+                print("Loading PulseAudio Echo Cancellation module...")
+                subprocess.run("pactl load-module module-echo-cancel", shell=True, check=True)
+            else:
+                print("PulseAudio Echo Cancellation module already loaded.")
+            
+            # Set defaults
+            print("Setting Echo Cancellation as default source/sink...")
+            subprocess.run("pactl set-default-source echo-cancel-source", shell=True)
+            subprocess.run("pactl set-default-sink echo-cancel-sink", shell=True)
+            
+        except Exception as e:
+            print(f"Warning: Could not setup Echo Cancellation: {e}")
 
     def start_input_stream(self):
         """Starts the microphone input stream with robust device selection."""

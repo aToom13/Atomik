@@ -63,10 +63,31 @@ async def capture_frames():
                         
                         img = await asyncio.to_thread(grab_screen)
                         
-                        # Release camera if switching to screen
-                        if cap is not None:
-                            cap.release()
-                            cap = None
+                        # PiP: Overlay camera feed
+                        # Ensure camera is open
+                        if cap is None or not cap.isOpened():
+                            cap = await asyncio.to_thread(cv2.VideoCapture, 0)
+
+                        if cap and cap.isOpened():
+                            ret, cam_frame = await asyncio.to_thread(cap.read)
+                            if ret:
+                                # Convert camera frame to PIL
+                                cam_rgb = cv2.cvtColor(cam_frame, cv2.COLOR_BGR2RGB)
+                                cam_img = Image.fromarray(cam_rgb)
+                                
+                                # Resize to 20% of screen width
+                                pip_width = int(img.width * 0.2)
+                                aspect_ratio = cam_img.height / cam_img.width
+                                pip_height = int(pip_width * aspect_ratio)
+                                cam_img = cam_img.resize((pip_width, pip_height), Image.Resampling.LANCZOS)
+                                
+                                # Position: Bottom-Right with padding
+                                padding = 20
+                                x_pos = img.width - pip_width - padding
+                                y_pos = img.height - pip_height - padding
+                                
+                                # Paste camera onto screen
+                                img.paste(cam_img, (x_pos, y_pos))
                             
                     except ImportError:
                         print(f"{Colors.YELLOW}🖥️ mss yüklü değil, pip install mss{Colors.RESET}")

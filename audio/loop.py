@@ -414,7 +414,20 @@ class AudioLoop:
         print_header()
         
         if ATOMBASE_AVAILABLE:
-            print(f"{Colors.CYAN}Yüklü araçlar: get_current_time, list_files, read_file, write_file, scan_workspace, run_terminal_command, run_neofetch{Colors.RESET}")
+            print(f"{Colors.CYAN}Yüklü araçlar: get_current_time, get_current_location, list_files, read_file, write_file, scan_workspace, run_terminal_command, run_neofetch{Colors.RESET}")
+            
+            # Cache location at startup
+            try:
+                from AtomBase.tools.location import get_current_location
+                import json
+                print(f"{Colors.YELLOW}📍 Konum tespit ediliyor...{Colors.RESET}", end=" ", flush=True)
+                location_data = get_current_location.invoke({})
+                state.cached_location = location_data
+                city = location_data.get("city", "Bilinmiyor")
+                country = location_data.get("country", "")
+                print(f"{Colors.GREEN}{city}, {country}{Colors.RESET}")
+            except Exception as e:
+                print(f"{Colors.YELLOW}Konum alınamadı{Colors.RESET}")
         
         print(f"{Colors.YELLOW}Gemini Live API'ye bağlanılıyor...{Colors.RESET}")
         

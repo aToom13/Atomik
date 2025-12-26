@@ -13,6 +13,11 @@ TOOL_DECLARATIONS = [
         "parameters": {"type": "OBJECT", "properties": {}}
     },
     {
+        "name": "get_current_location",
+        "description": "Get current location info (city, country, lat, lon) based on IP address.",
+        "parameters": {"type": "OBJECT", "properties": {}}
+    },
+    {
         "name": "list_files",
         "description": "Lists files in a directory within the workspace.",
         "parameters": {

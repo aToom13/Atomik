@@ -16,3 +16,6 @@ last_frame_time = 0
 
 # Active Loop Reference
 active_loop = None
+
+# Cached Location (fetched at startup)
+cached_location = None
