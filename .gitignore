@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+.env
+.atom_checkpoints/
+atombase.log
+atom_workspace/
+*.DS_Store
