@@ -50,33 +50,93 @@ def set_command_callback(callback):
 
 def execute_command_direct(command: str) -> str:
     """Actually execute the command and return output"""
+    
+    # Detect GUI/interactive commands that should run in background
+    gui_indicators = ['pygame', 'tkinter', 'gtk', 'qt', 'kivy', 'flappy', 'game', 
+                      'display', 'window', 'gui', 'firefox', 'chrome', 'code', 'gedit']
+    
+    is_gui_command = any(indicator in command.lower() for indicator in gui_indicators)
+    
+    # Also check for .py files that might be GUI apps
+    if '.py' in command and not any(x in command for x in ['--help', '-h', '--version']):
+        # Assume Python scripts might be GUI, run with short timeout first
+        is_gui_command = True
+    
     try:
-        result = subprocess.run(
-            command,
-            shell=True,
-            cwd=WORKSPACE_DIR,
-            capture_output=True,
-            text=True,
-            timeout=30
-        )
-        
-        output = result.stdout
-        if result.stderr:
-            output += f"\n[stderr]: {result.stderr}"
-        
-        if not output.strip():
-            output = "✓ Komut başarıyla çalıştı (çıktı yok)"
-        
-        # Truncate if too long
-        if len(output) > 2000:
-            output = output[:2000] + "\n... (kırpıldı)"
-        
-        return output
+        if is_gui_command:
+            # Log stderr to file so errors can be tracked
+            log_dir = os.path.join(WORKSPACE_DIR, ".logs")
+            os.makedirs(log_dir, exist_ok=True)
+            
+            import time
+            timestamp = time.strftime("%Y%m%d_%H%M%S")
+            log_file = os.path.join(log_dir, f"app_{timestamp}.log")
+            
+            # Open log file for stderr
+            stderr_log = open(log_file, 'w')
+            
+            # Run GUI apps in background (non-blocking) with stderr logging
+            process = subprocess.Popen(
+                command,
+                shell=True,
+                cwd=WORKSPACE_DIR,
+                stdout=subprocess.DEVNULL,
+                stderr=stderr_log,
+                start_new_session=True  # Detach from parent
+            )
+            
+            # Wait briefly to detect immediate crashes
+            time.sleep(1.0)
+            
+            # Check if process crashed immediately
+            poll_result = process.poll()
+            if poll_result is not None:
+                # Process ended - likely crashed
+                stderr_log.close()
+                
+                # Read error log
+                with open(log_file, 'r') as f:
+                    error_content = f.read().strip()
+                
+                if error_content:
+                    # Truncate if too long
+                    if len(error_content) > 500:
+                        error_content = error_content[:500] + "..."
+                    return f"❌ Uygulama çöktü (kod: {poll_result}):\n{error_content}"
+                else:
+                    return f"❌ Uygulama hemen kapandı (kod: {poll_result}). Log boş."
+            
+            # Process is still running
+            return f"✓ Uygulama başladı (PID: {process.pid}). Konuşmaya devam edebilirsin!"
+        else:
+            # Regular commands - run synchronously with timeout
+            result = subprocess.run(
+                command,
+                shell=True,
+                cwd=WORKSPACE_DIR,
+                capture_output=True,
+                text=True,
+                timeout=30
+            )
+            
+            output = result.stdout
+            if result.stderr:
+                output += f"\n[stderr]: {result.stderr}"
+            
+            if not output.strip():
+                output = "✓ Komut başarıyla çalıştı (çıktı yok)"
+            
+            # Truncate if too long
+            if len(output) > 2000:
+                output = output[:2000] + "\n... (kırpıldı)"
+            
+            return output
         
     except subprocess.TimeoutExpired:
         return "❌ Komut zaman aşımına uğradı (30 saniye)"
     except Exception as e:
         return f"❌ Komut hatası: {str(e)}"
+
 
 def _is_command_safe(command: str) -> tuple[bool, str, str]:
     """

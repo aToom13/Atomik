@@ -19,3 +19,6 @@ active_loop = None
 
 # Cached Location (fetched at startup)
 cached_location = None
+
+# Echo Cancellation - Atomik konuşurken mikrofon eşiğini yükselt
+atomik_is_speaking = False

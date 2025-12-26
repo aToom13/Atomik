@@ -250,5 +250,227 @@ TOOL_DECLARATIONS = [
             },
             "required": ["element_name"]
         }
+    },
+    # Clipboard Tools
+    {
+        "name": "clipboard_read",
+        "description": "Panodaki (clipboard) metni oku. Kullanıcı 'kopyaladığım şey' dediğinde kullan.",
+        "parameters": {"type": "OBJECT", "properties": {}}
+    },
+    {
+        "name": "clipboard_write",
+        "description": "Metni panoya (clipboard) kopyala.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "text": {"type": "STRING", "description": "Panoya kopyalanacak metin"}
+            },
+            "required": ["text"]
+        }
+    },
+    # Web Search Tool
+    {
+        "name": "web_search",
+        "description": "İnternette arama yap ve sonuçları getir. Güncel bilgi için kullan.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "query": {"type": "STRING", "description": "Arama sorgusu"},
+                "num_results": {"type": "INTEGER", "description": "Kaç sonuç getirilsin (varsayılan: 5)"}
+            },
+            "required": ["query"]
+        }
+    },
+    # Notification Tool
+    {
+        "name": "show_notification",
+        "description": "Masaüstü bildirimi göster. Önemli uyarılar veya hatırlatmalar için kullan.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "title": {"type": "STRING", "description": "Bildirim başlığı"},
+                "message": {"type": "STRING", "description": "Bildirim mesajı"}
+            },
+            "required": ["title", "message"]
+        }
+    },
+    # ===== RAG MEMORY TOOLS =====
+    {
+        "name": "remember_this",
+        "description": "Bir konuşmayı veya bilgiyi uzun süreli hafızaya kaydet. Kullanıcı 'bunu hatırla', 'kaydet' dediğinde veya önemli konuşmalar sonunda kullan.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "summary": {
+                    "type": "STRING",
+                    "description": "Hatırlanacak bilginin özeti (örn: 'Kullanıcı depremler hakkında sordu, AFAD sitesinden baktık')"
+                },
+                "topic": {
+                    "type": "STRING",
+                    "description": "Konu etiketi (örn: 'deprem', 'hava', 'proje')"
+                }
+            },
+            "required": ["summary"]
+        }
+    },
+    {
+        "name": "recall_memory",
+        "description": "Geçmiş konuşmalardan ilgili anıları getir. 'Geçen ne konuşmuştuk?', 'X hakkında ne demiştim?' gibi sorularda kullan.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "query": {
+                    "type": "STRING",
+                    "description": "Aranacak konu veya anahtar kelime"
+                }
+            },
+            "required": ["query"]
+        }
+    },
+    {
+        "name": "get_recent_memories",
+        "description": "Son günlerdeki tüm kayıtlı anıları listele. 'Son zamanlarda ne konuştuk?' sorularında kullan.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "days": {
+                    "type": "INTEGER",
+                    "description": "Kaç günlük anılar getirilsin (varsayılan: 7)"
+                }
+            }
+        }
+    },
+    # ===== WEB SCRAPER TOOL =====
+    {
+        "name": "visit_webpage",
+        "description": "Bir web sayfasını ziyaret edip içeriğini oku. Web search sonuçlarından detay almak için kullan.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "url": {
+                    "type": "STRING",
+                    "description": "Ziyaret edilecek sayfa URL'i"
+                }
+            },
+            "required": ["url"]
+        }
+    },
+    # ===== SESSION HISTORY TOOLS =====
+    {
+        "name": "search_chat_history",
+        "description": "Geçmiş sohbetlerde arama yap. 'X hakkında ne konuşmuştuk?', 'Geçen Y demiştim' gibi sorularda kullan.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "query": {
+                    "type": "STRING",
+                    "description": "Aranacak kelime veya konu"
+                }
+            },
+            "required": ["query"]
+        }
+    },
+    {
+        "name": "get_chat_stats",
+        "description": "Sohbet istatistiklerini göster. Kaç konuşma, kaç mesaj gibi.",
+        "parameters": {"type": "OBJECT", "properties": {}}
+    },
+    # ===== CODE QUALITY TOOLS =====
+    {
+        "name": "run_linter",
+        "description": "Python dosyasını lint kontrolünden geçir. Kod kalitesi ve hataları kontrol eder.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "file_path": {
+                    "type": "STRING",
+                    "description": "Kontrol edilecek Python dosyasının yolu"
+                }
+            },
+            "required": ["file_path"]
+        }
+    },
+    {
+        "name": "format_code",
+        "description": "Python dosyasını otomatik formatla (black). Kodu güzelleştirir.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "file_path": {
+                    "type": "STRING",
+                    "description": "Formatlanacak Python dosyasının yolu"
+                }
+            },
+            "required": ["file_path"]
+        }
+    },
+    {
+        "name": "run_tests",
+        "description": "Testleri çalıştır (pytest). Belirli bir dosya veya klasör için.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "path": {
+                    "type": "STRING",
+                    "description": "Test dosyası veya klasörü (boş bırakılırsa tüm testler)"
+                }
+            }
+        }
+    },
+    # ===== LEARNING TOOLS =====
+    {
+        "name": "log_mood",
+        "description": "Kullanıcının ruh halini kaydet. Görsel ipuçlarından veya konuşmadan anladığında kullan.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "mood": {
+                    "type": "STRING",
+                    "description": "Ruh hali: happy, sad, tired, focused, stressed, relaxed, neutral"
+                },
+                "context": {
+                    "type": "STRING",
+                    "description": "Bağlam veya neden (opsiyonel)"
+                }
+            },
+            "required": ["mood"]
+        }
+    },
+    {
+        "name": "update_preference",
+        "description": "Kullanıcı tercihini kaydet. 'Favori X' gibi bilgiler için kullan.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "key": {
+                    "type": "STRING",
+                    "description": "Tercih anahtarı (örn: favorite_color, favorite_language)"
+                },
+                "value": {
+                    "type": "STRING",
+                    "description": "Tercih değeri"
+                }
+            },
+            "required": ["key", "value"]
+        }
+    },
+    {
+        "name": "add_project",
+        "description": "Kullanıcının çalıştığı projeyi kaydet veya güncelle.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "name": {
+                    "type": "STRING",
+                    "description": "Proje adı"
+                },
+                "status": {
+                    "type": "STRING",
+                    "description": "Durum: active, completed, paused, bug_fixing"
+                }
+            },
+            "required": ["name"]
+        }
     }
 ]
+

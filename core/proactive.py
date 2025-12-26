@@ -65,6 +65,17 @@ class ProactiveManager:
         for reminder in self.reminders:
             if reminder.is_due():
                 due_messages.append(f"[HATIRLATICI]: {reminder.message}")
+                # Also show desktop notification
+                try:
+                    from plyer import notification
+                    notification.notify(
+                        title="⏰ Atomik Hatırlatıcı",
+                        message=reminder.message,
+                        app_name="Atomik",
+                        timeout=15
+                    )
+                except Exception:
+                    pass  # Notification optional
             else:
                 remaining.append(reminder)
         

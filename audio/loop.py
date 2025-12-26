@@ -1,6 +1,11 @@
 """
 Audio Loop - Main audio processing class
 """
+import warnings
+# Suppress ALL deprecation and runtime warnings BEFORE any imports
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+warnings.filterwarnings("ignore", category=RuntimeWarning)
+
 import asyncio
 import os
 import sys
@@ -25,6 +30,7 @@ from core.colors import Colors, print_header
 from core import state
 from tools import TOOL_DECLARATIONS, execute_tool, ATOMBASE_AVAILABLE, CAMERA_ENABLED, MEMORY_AVAILABLE
 from .video import capture_frames
+from .echo_cancel import aec
 
 # PyAudio instance
 pya = pyaudio.PyAudio()
@@ -60,6 +66,33 @@ try:
 except ImportError:
     add_to_history = lambda *args: None
 
+# Import RAG memory for automatic conversation saving
+try:
+    from AtomBase.tools.rag_memory import remember_conversation
+    RAG_AVAILABLE = True
+except ImportError:
+    remember_conversation = lambda *args, **kwargs: None
+    RAG_AVAILABLE = False
+
+# Import SQLite session database for persistent history
+try:
+    from AtomBase.tools.session_db import save_message as db_save_message, start_session as db_start_session
+    SESSION_DB_AVAILABLE = True
+except ImportError:
+    db_save_message = lambda *args: None
+    db_start_session = lambda: None
+    SESSION_DB_AVAILABLE = False
+
+# Import learning module for startup context and fact extraction
+try:
+    from AtomBase.tools.learning import get_startup_context, process_conversation_for_learning, log_mood
+    LEARNING_AVAILABLE = True
+except ImportError:
+    get_startup_context = lambda: ""
+    process_conversation_for_learning = lambda *args: None
+    log_mood = lambda *args: None
+    LEARNING_AVAILABLE = False
+
 
 class AudioLoop:
     def __init__(self):
@@ -69,6 +102,7 @@ class AudioLoop:
         self._last_input_transcription = ""
         self._last_output_transcription = ""
         self._silence_start_time = None
+        self._skip_next_transcription = False  # Skip stale transcription after tool call
         
         # Set global reference needed by tools
         state.active_loop = self
@@ -127,7 +161,9 @@ class AudioLoop:
                     exception_on_overflow=False
                 )
                 if self.out_queue:
-                    await self.out_queue.put({"data": data, "mime_type": "audio/pcm"})
+                    # Echo Cancellation: Process microphone data
+                    clean_data = aec.process_microphone(data)
+                    await self.out_queue.put({"data": clean_data, "mime_type": "audio/pcm"})
                 
                 # VAD Logic for Camera
                 if CAMERA_ENABLED and state.latest_image_payload:
@@ -178,6 +214,16 @@ class AudioLoop:
                         self.audio_in_queue.put_nowait(data)
                     
                     if response.tool_call:
+                        # Wait for audio to finish playing before executing tools
+                        # This prevents tools from interrupting mid-sentence
+                        while not self.audio_in_queue.empty():
+                            await asyncio.sleep(0.1)
+                        
+                        # Print transition phrase before tool call
+                        if agent_buffer:
+                            print()  # New line after previous agent text
+                            agent_buffer = ""
+                        
                         print(f"\n{Colors.BLUE}🔧 Araç çağrısı algılandı{Colors.RESET}")
                         function_responses = []
                         
@@ -207,6 +253,17 @@ class AudioLoop:
                         
                         await self.session.send_tool_response(function_responses=function_responses)
                         
+                        # Reset transcription state and skip next stale message after tool call
+                        # This prevents "Bitince haber veririm" type messages from appearing AFTER tool result
+                        self._last_output_transcription = ""
+                        self._skip_next_transcription = True  # Skip the stale transcription
+                        
+                        # Clear any stale audio that was queued before tool execution
+                        self.clear_audio_queue()
+                        
+                        # Small delay to let any pending transcription messages pass through
+                        await asyncio.sleep(0.2)
+                        
                         if state.pending_camera_frame and self.out_queue:
                             await self.out_queue.put(state.pending_camera_frame)
                             state.pending_camera_frame = None
@@ -232,6 +289,12 @@ class AudioLoop:
                         if response.server_content.output_transcription:
                             transcript = response.server_content.output_transcription.text
                             if transcript and transcript != self._last_output_transcription:
+                                # Skip stale transcription that came with tool call
+                                if self._skip_next_transcription:
+                                    self._skip_next_transcription = False
+                                    self._last_output_transcription = transcript
+                                    continue  # Skip this stale message
+                                
                                 delta = transcript
                                 if transcript.startswith(self._last_output_transcription):
                                     delta = transcript[len(self._last_output_transcription):]
@@ -269,6 +332,26 @@ class AudioLoop:
                                 self._complete_user_msg = user_buffer
                                 print()
                                 user_buffer = ""
+                            
+                            # Auto-save to RAG memory (persistent across sessions)
+                            if RAG_AVAILABLE and hasattr(self, '_complete_user_msg') and hasattr(self, '_complete_agent_msg'):
+                                if self._complete_user_msg and self._complete_agent_msg:
+                                    summary = f"Sen: {self._complete_user_msg[:150]} → Atomik: {self._complete_agent_msg[:150]}"
+                                    remember_conversation(summary, {"type": "auto"})
+                            
+                            # Auto-save to SQLite database (searchable history)
+                            if SESSION_DB_AVAILABLE:
+                                if hasattr(self, '_complete_user_msg') and self._complete_user_msg:
+                                    db_save_message("user", self._complete_user_msg)
+                                if hasattr(self, '_complete_agent_msg') and self._complete_agent_msg:
+                                    db_save_message("agent", self._complete_agent_msg)
+                            
+                            # Extract facts for learning (preferences, projects, etc.)
+                            if LEARNING_AVAILABLE:
+                                if hasattr(self, '_complete_user_msg') and hasattr(self, '_complete_agent_msg'):
+                                    if self._complete_user_msg and self._complete_agent_msg:
+                                        process_conversation_for_learning(self._complete_user_msg, self._complete_agent_msg)
+                            
                             self._last_input_transcription = ""
                             self._last_output_transcription = ""
                             
@@ -313,6 +396,8 @@ class AudioLoop:
         
         while True:
             bytestream = await self.audio_in_queue.get()
+            # Echo Cancellation: Register speaker output
+            aec.feed_speaker(bytestream)
             await asyncio.to_thread(stream.write, bytestream)
     
     async def proactive_check(self):
@@ -441,6 +526,18 @@ class AudioLoop:
                 self.out_queue = asyncio.Queue(maxsize=10)
                 
                 print(f"{Colors.GREEN}✓ Bağlandı!{Colors.RESET}")
+                
+                # Load and inject startup context (memories, profile, mood)
+                if LEARNING_AVAILABLE:
+                    startup_ctx = get_startup_context()
+                    if startup_ctx:
+                        print(f"{Colors.CYAN}🧠 Hafıza yükleniyor...{Colors.RESET}")
+                        # Send context as initial text to Gemini
+                        await session.send_client_content(
+                            turns=[{"role": "user", "parts": [{"text": f"[SİSTEM HAFIZA YÜKLEMESI - KULLANICIYA GÖRÜNMEZ]\n{startup_ctx}"}]}],
+                            turn_complete=True
+                        )
+                
                 print(f"{Colors.DIM}{'─' * 50}{Colors.RESET}")
                 print(f"{Colors.CYAN}Konuşmaya başlayabilirsiniz...{Colors.RESET}\n")
                 
@@ -458,10 +555,27 @@ class AudioLoop:
                     
         except asyncio.CancelledError:
             print(f"\n{Colors.YELLOW}Çıkılıyor...{Colors.RESET}")
+            return  # Don't reconnect on intentional exit
         except Exception as e:
-            import traceback
-            print(f"\n{Colors.YELLOW}Hata: {e}{Colors.RESET}")
-            traceback.print_exc()
+            print(f"\n{Colors.YELLOW}Bağlantı koptu: {e}{Colors.RESET}")
+            
+            # Check if this is a session timeout/policy error (reconnectable)
+            error_str = str(e).lower()
+            if any(x in error_str for x in ['1008', 'policy', 'timeout', 'closed', 'entity']):
+                print(f"{Colors.CYAN}🔄 Otomatik yeniden bağlanılıyor...{Colors.RESET}")
+                await asyncio.sleep(2)  # Brief pause before reconnect
+                
+                # Reset state for new session
+                self._last_input_transcription = ""
+                self._last_output_transcription = ""
+                self._skip_next_transcription = False
+                
+                # Recursive call to reconnect
+                await self.run()
+            else:
+                import traceback
+                print(f"\n{Colors.RED}Kritik hata: {e}{Colors.RESET}")
+                traceback.print_exc()
 
 
 def cleanup():

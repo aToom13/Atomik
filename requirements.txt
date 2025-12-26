@@ -1,3 +1,13 @@
 google-genai
 pyaudio
 python-dotenv
+
+duckduckgo-search
+beautifulsoup4
+requests
+
+# New features
+pyperclip
+plyer
+tavily-python
+chromadb

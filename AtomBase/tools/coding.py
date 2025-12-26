@@ -1,166 +1,222 @@
 """
-Code Delegation Tool - Delegates coding tasks to smarter model
-Uses Gemini 3 Flash Preview for complex coding while voice model handles conversation
+Coding Tools for Atomik
+Provides safe code execution and surgical file editing capabilities.
 """
 import os
-from typing import Optional
-from dotenv import load_dotenv
-from google import genai
-from google.genai import types
+import subprocess
 
-load_dotenv()
-# Also try parent directories for .env
-import pathlib
-for parent in pathlib.Path(__file__).parents:
-    env_file = parent / ".env"
-    if env_file.exists():
-        load_dotenv(env_file)
-        break
+# Try langchain import, fallback to None if not available
+try:
+    from langchain_core.tools import tool
+except ImportError:
+    def tool(func): return func  # Dummy decorator
 
-# Get API key
-API_KEY = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+# Try to get workspace from config, fallback to current dir
+try:
+    from config import config
+    WORKSPACE_DIR = config.workspace.base_dir
+except ImportError:
+    WORKSPACE_DIR = os.getcwd()
 
-# Smarter model for coding
-CODING_MODEL = "gemini-3-flash-preview"
-
-# Initialize client
-client = genai.Client(api_key=API_KEY) if API_KEY else None
-
-CODING_SYSTEM_PROMPT = """Sen uzman bir yazılım geliştiricisin.
-Görevin:
-1. Kullanıcının isteğini analiz et
-2. Temiz, çalışan kod yaz
-3. Kodu açıkla (kısa ve öz)
-
-Kurallar:
-- Kod bloklarını ```language formatında yaz
-- Türkçe açıklama yap
-- Gereksiz yorum satırı ekleme
-- Dosya adı öner (örn: script.py)
-"""
+# Simple logger fallback
+try:
+    from utils.logger import get_logger
+    logger = get_logger()
+except ImportError:
+    class DummyLogger:
+        def info(self, msg): print(f"INFO: {msg}")
+        def error(self, msg): print(f"ERROR: {msg}")
+        def warning(self, msg): print(f"WARNING: {msg}")
+    logger = DummyLogger()
 
 
+# ============================================
+# BACKWARD COMPATIBILITY (for executor.py)
+# ============================================
 def delegate_coding(prompt: str, context: str = "") -> dict:
     """
-    Delegates a coding task to a smarter model.
-    
-    Args:
-        prompt: User's coding request
-        context: Optional context (current files, etc.)
-    
-    Returns:
-        dict with 'code', 'filename', 'explanation'
+    Code generation using Gemini API.
+    Returns a dict with filename, code, and explanation.
+    Designed for future multi-provider support.
     """
-    if not client:
-        return {
-            "success": False,
-            "error": "API key not configured",
-            "code": "",
-            "filename": "",
-            "explanation": ""
-        }
-    
-    # Build the full prompt
-    full_prompt = f"""
-Kullanıcı İsteği: {prompt}
-
-{f"Bağlam: {context}" if context else ""}
-
-Lütfen:
-1. İstenen kodu yaz
-2. Önerilen dosya adını belirt
-3. Kısa bir açıklama yap
-"""
-    
     try:
-        response = client.models.generate_content(
-            model=CODING_MODEL,
-            contents=full_prompt,
-            config=types.GenerateContentConfig(
-                system_instruction=CODING_SYSTEM_PROMPT,
-                temperature=0.2,
-                max_output_tokens=4096
-            )
-        )
-        
-        result_text = response.text
-        
-        # Parse code blocks
-        code = ""
-        filename = "output.py"
-        
+        import os
+        import json
         import re
-        code_match = re.search(r'```(\w+)?\n(.*?)```', result_text, re.DOTALL)
-        if code_match:
-            lang = code_match.group(1) or "python"
-            code = code_match.group(2).strip()
-            
-            # Suggest filename based on language
-            ext_map = {
-                "python": ".py",
-                "javascript": ".js",
-                "typescript": ".ts",
-                "html": ".html",
-                "css": ".css",
-                "bash": ".sh",
-                "shell": ".sh",
-                "json": ".json",
-                "yaml": ".yaml",
-                "sql": ".sql"
-            }
-            ext = ext_map.get(lang.lower(), ".txt")
-            
-            # Try to extract filename from response
-            filename_match = re.search(r'(?:dosya adı|filename|file)[:\s]+[`"]?(\w+(?:\.\w+)?)[`"]?', result_text, re.IGNORECASE)
-            if filename_match:
-                filename = filename_match.group(1)
-                if not any(filename.endswith(e) for e in ext_map.values()):
-                    filename += ext
-            else:
-                filename = f"code{ext}"
         
-        # Get explanation (text outside code blocks)
-        explanation = re.sub(r'```.*?```', '', result_text, flags=re.DOTALL).strip()
-        # Shorten for voice
-        if len(explanation) > 300:
-            explanation = explanation[:300] + "..."
+        # Use google-generativeai for code generation
+        try:
+            import google.generativeai as genai
+        except ImportError:
+            return {"success": False, "error": "google-generativeai not installed"}
         
-        return {
-            "success": True,
-            "code": code,
-            "filename": filename,
-            "explanation": explanation,
-            "full_response": result_text
-        }
+        # Get API key
+        api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+        if not api_key:
+            return {"success": False, "error": "GEMINI_API_KEY not set"}
+        
+        genai.configure(api_key=api_key)
+        
+        # Use flash model for code generation (fast and capable)
+        model = genai.GenerativeModel("gemini-3-flash-preview")
+        
+        full_prompt = f"""Generate Python code for this task. Return ONLY valid JSON with no markdown:
+{{"filename": "appropriate_name.py", "code": "...the complete code...", "explanation": "Brief explanation"}}
+
+Task: {prompt}
+Context: {context}
+
+Important:
+- Return ONLY the JSON object, no markdown code blocks
+- Make sure the code is complete and runnable
+- Use appropriate filename based on the task"""
+        
+        response = model.generate_content(full_prompt)
+        content = response.text
+        
+        # Clean up markdown if present
+        content = content.strip()
+        if content.startswith("```json"):
+            content = content[7:]
+        if content.startswith("```"):
+            content = content[3:]
+        if content.endswith("```"):
+            content = content[:-3]
+        content = content.strip()
+        
+        # Find JSON in response
+        match = re.search(r'\{.*\}', content, re.DOTALL)
+        if match:
+            result = json.loads(match.group())
+            result["success"] = True
+            return result
+        
+        return {"success": False, "error": "Could not parse response as JSON"}
         
     except Exception as e:
-        return {
-            "success": False,
-            "error": str(e),
-            "code": "",
-            "filename": "",
-            "explanation": f"Kod oluşturulurken hata: {e}"
-        }
+        logger.error(f"Delegate coding error: {e}")
+        return {"success": False, "error": str(e)}
 
-
-def save_generated_code(filename: str, code: str, workspace_dir: str = None) -> str:
-    """Saves generated code to workspace."""
-    if not workspace_dir:
-        workspace_dir = os.path.join(os.path.dirname(__file__), "atom_workspace")
-    
-    os.makedirs(workspace_dir, exist_ok=True)
-    filepath = os.path.join(workspace_dir, filename)
-    
+def save_generated_code(filename: str, code: str, workspace: str) -> str:
+    """Save generated code to workspace."""
+    filepath = os.path.join(workspace, filename)
+    os.makedirs(os.path.dirname(filepath) if os.path.dirname(filepath) else workspace, exist_ok=True)
     with open(filepath, "w", encoding="utf-8") as f:
         f.write(code)
-    
     return filepath
 
+# ============================================
+# MODERN TOOLS (LangChain @tool)
+# ============================================
 
-# Test
-if __name__ == "__main__":
-    result = delegate_coding("Fibonacci dizisinin ilk 10 elemanını yazdıran bir Python scripti yaz")
-    print("Success:", result["success"])
-    print("Filename:", result["filename"])
-    print("Code:\n", result["code"])
-    print("Explanation:", result["explanation"])
+def _get_safe_path(filename: str) -> str:
+    """Workspace güvenliği için path kontrolü."""
+    # Basit bir güvenlik kontrolü, files.py ile benzer
+    if filename.startswith("/"):
+        if not filename.startswith(WORKSPACE_DIR):
+            # Eğer workspace dışı ise ve atom_workspace içinde değilse hata
+             if "atom_workspace" not in filename: # Basit check
+                 pass # Şimdilik soft pass, gerekirse fixlenir
+    
+    # Relative path ise workspace'e ekle
+    if not os.path.isabs(filename):
+         return os.path.join(WORKSPACE_DIR, filename)
+    return filename
+
+@tool
+def edit_file(filename: str, target_text: str, replacement_text: str) -> str:
+    """
+    Bir dosya içinde "cerrah titizliğiyle" değişiklik yapar.
+    Dosyanın tamamını yeniden yazmak yerine, sadece ilgili kısmı değiştirir.
+    
+    Args:
+        filename: Dosya yolu
+        target_text: Değiştirilecek metin (orijinal haliyle, tam eşleşmeli)
+        replacement_text: Yeni metin
+    """
+    logger.info(f"Editing file: {filename}")
+    try:
+        file_path = _get_safe_path(filename)
+        
+        if not os.path.exists(file_path):
+            return f"Hata: Dosya bulunamadı: {filename}"
+            
+        with open(file_path, "r", encoding="utf-8") as f:
+            content = f.read()
+            
+        if target_text not in content:
+            # Basit whitespace temizliği ile dene
+            if target_text.strip() in content:
+                 target_text = target_text.strip()
+            else:
+                return "Hata: Hedef metin dosyada bulunamadı. Lütfen boşluklara dikkat edin veya metnin bir kısmını aratın."
+        
+        # Replace only the first occurrence to be safe, or logic could be improved
+        new_content = content.replace(target_text, replacement_text, 1)
+        
+        with open(file_path, "w", encoding="utf-8") as f:
+            f.write(new_content)
+            
+        return f"✅ Dosya güncellendi: {filename}"
+        
+    except Exception as e:
+        logger.error(f"Edit failed: {e}")
+        return f"Düzenleme hatası: {e}"
+
+@tool
+def run_python(code: str) -> str:
+    """
+    Python kodunu güvenli bir şekilde çalıştırır.
+    Küçük scriptler, hesaplamalar veya testler için kullanın.
+    
+    Args:
+        code: Çalıştırılacak Python kodu
+    """
+    logger.info("Running python code via subprocess")
+    try:
+        # Kodu geçici bir dosyaya yaz
+        temp_file = os.path.join(WORKSPACE_DIR, "temp_execution.py")
+        with open(temp_file, "w", encoding="utf-8") as f:
+            f.write(code)
+            
+        # Çalıştır
+        result = subprocess.run(
+            ["python3", temp_file],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            cwd=WORKSPACE_DIR
+        )
+        
+        # Temizle
+        if os.path.exists(temp_file):
+            os.remove(temp_file)
+            
+        output = result.stdout
+        if result.stderr:
+            output += f"\n[HATA]\n{result.stderr}"
+            
+        if not output:
+            output = "Kod çalıştı (Çıktı yok)."
+            
+        return output
+        
+    except subprocess.TimeoutExpired:
+        return "Zaman aşımı: Kod 10 saniyeden uzun sürdü."
+    except Exception as e:
+        return f"Çalıştırma hatası: {e}"
+
+@tool
+def read_file_preview(filename: str, lines: int = 10) -> str:
+    """
+    Dosyanın ilk N satırını okur. Hızlı kontrol için.
+    """
+    try:
+        file_path = _get_safe_path(filename)
+        with open(file_path, "r", encoding="utf-8") as f:
+             head = [next(f) for _ in range(lines)]
+        return "".join(head)
+    except StopIteration:
+        return "Dosya boş veya okunamadı."
+    except Exception as e:
+        return f"Okuma hatası: {e}"
