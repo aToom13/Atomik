@@ -9,6 +9,7 @@ warnings.filterwarnings("ignore", category=RuntimeWarning)
 import asyncio
 import os
 import sys
+import shutil  # Terminal boyutu için
 import pyaudio
 import struct
 import math
@@ -235,8 +236,8 @@ class AudioLoop:
                             else:
                                 result = "AtomBase araçları yüklenmedi"
                             
-                            if len(result) > 500:
-                                result = result[:500] + "... (kırpıldı)"
+                            if len(result) > 8000:
+                                result = result[:8000] + "... (kırpıldı)"
                             
                             print(f"{Colors.BLUE}   ✓ Sonuç: {result[:100]}...{Colors.RESET}")
                             
@@ -284,7 +285,16 @@ class AudioLoop:
                                         print()
                                         agent_buffer = ""
                                     user_buffer += delta
-                                    print(f"\033[2K\r{Colors.GREEN}[Sen]{Colors.RESET} {user_buffer}", end="", flush=True)
+                                    # Terminal genişliğine göre kısalt (wrap bug'ı önlemek için)
+                                    try:
+                                        term_width = shutil.get_terminal_size().columns
+                                    except:
+                                        term_width = 80
+                                    prefix = f"{Colors.GREEN}[Sen]{Colors.RESET} "
+                                    prefix_len = 6  # "[Sen] " görünen uzunluk
+                                    max_text_len = term_width - prefix_len - 1
+                                    display_text = user_buffer[-max_text_len:] if len(user_buffer) > max_text_len else user_buffer
+                                    print(f"\033[2K\r{prefix}{display_text}", end="", flush=True)
                         
                         if response.server_content.output_transcription:
                             transcript = response.server_content.output_transcription.text
@@ -516,66 +526,94 @@ class AudioLoop:
         
         print(f"{Colors.YELLOW}Gemini Live API'ye bağlanılıyor...{Colors.RESET}")
         
-        try:
-            async with (
-                client.aio.live.connect(model=MODEL, config=config) as session,
-                asyncio.TaskGroup() as tg,
-            ):
-                self.session = session
-                self.audio_in_queue = asyncio.Queue()
-                self.out_queue = asyncio.Queue(maxsize=10)
-                
-                print(f"{Colors.GREEN}✓ Bağlandı!{Colors.RESET}")
-                
-                # Load and inject startup context (memories, profile, mood)
-                if LEARNING_AVAILABLE:
-                    startup_ctx = get_startup_context()
-                    if startup_ctx:
-                        print(f"{Colors.CYAN}🧠 Hafıza yükleniyor...{Colors.RESET}")
-                        # Send context as initial text to Gemini
-                        await session.send_client_content(
-                            turns=[{"role": "user", "parts": [{"text": f"[SİSTEM HAFIZA YÜKLEMESI - KULLANICIYA GÖRÜNMEZ]\n{startup_ctx}"}]}],
-                            turn_complete=True
-                        )
-                
-                print(f"{Colors.DIM}{'─' * 50}{Colors.RESET}")
-                print(f"{Colors.CYAN}Konuşmaya başlayabilirsiniz...{Colors.RESET}\n")
-                
-                tg.create_task(self.send_realtime())
-                tg.create_task(self.listen_audio())
-                tg.create_task(self.receive_audio())
-                tg.create_task(self.play_audio())
-                tg.create_task(self.proactive_check())
-                
-                if CAMERA_ENABLED:
-                    tg.create_task(capture_frames())
-                
-                while True:
-                    await asyncio.sleep(1)
+        while True:
+            try:
+                async with (
+                    client.aio.live.connect(model=MODEL, config=config) as session,
+                    asyncio.TaskGroup() as tg,
+                ):
+                    self.session = session
+                    self.audio_in_queue = asyncio.Queue()
+                    self.out_queue = asyncio.Queue(maxsize=10)
                     
-        except asyncio.CancelledError:
-            print(f"\n{Colors.YELLOW}Çıkılıyor...{Colors.RESET}")
-            return  # Don't reconnect on intentional exit
-        except Exception as e:
-            print(f"\n{Colors.YELLOW}Bağlantı koptu: {e}{Colors.RESET}")
-            
-            # Check if this is a session timeout/policy error (reconnectable)
-            error_str = str(e).lower()
-            if any(x in error_str for x in ['1008', 'policy', 'timeout', 'closed', 'entity']):
-                print(f"{Colors.CYAN}🔄 Otomatik yeniden bağlanılıyor...{Colors.RESET}")
-                await asyncio.sleep(2)  # Brief pause before reconnect
+                    print(f"{Colors.GREEN}✓ Bağlandı!{Colors.RESET}")
+                    
+                    # Load and inject startup context (memories, profile, mood)
+                    if LEARNING_AVAILABLE:
+                        startup_ctx = get_startup_context()
+                        if startup_ctx:
+                            print(f"{Colors.CYAN}🧠 Hafıza yükleniyor...{Colors.RESET}")
+                            # Send context as initial text to Gemini
+                            await session.send_client_content(
+                                turns=[{"role": "user", "parts": [{"text": f"[SİSTEM HAFIZA YÜKLEMESI - KULLANICIYA GÖRÜNMEZ]\n{startup_ctx}"}]}],
+                                turn_complete=True
+                            )
+                    
+                    print(f"{Colors.DIM}{'─' * 50}{Colors.RESET}")
+                    print(f"{Colors.CYAN}Konuşmaya başlayabilirsiniz...{Colors.RESET}\n")
+                    
+                    tg.create_task(self.send_realtime())
+                    tg.create_task(self.listen_audio())
+                    tg.create_task(self.receive_audio())
+                    tg.create_task(self.play_audio())
+                    tg.create_task(self.proactive_check())
+                    
+                    if CAMERA_ENABLED:
+                        tg.create_task(capture_frames())
+                    
+                    session_start_time = time.time()
+                    
+                    while True:
+                        await asyncio.sleep(1)
+                        
+                        # Proaktif Oturum Yenileme (9 dakika kuralı)
+                        limit_seconds = 540  # 9 dakika
+                        if time.time() - session_start_time > limit_seconds:
+                            print(f"{Colors.YELLOW}⏳ Oturum süresi doldu ({limit_seconds}sn), proaktif yenileniyor...{Colors.RESET}")
+                            
+                            # Kullanıcıya doğal bir bildirim (sesli)
+                            try:
+                                msg = "Şey, ufak bir teknik aksaklık yaşıyorum, bağlantıyı tazeleyip hemen geliyorum. Bir saniye..."
+                                await self.session.send(input=msg, end_of_turn=True)
+                                await asyncio.sleep(6)  # Mesajın iletilmesi ve seslendirilmesi için bekle
+                            except:
+                                pass
+                                
+                            raise Exception("Session timeout refresh (Auto-Reconnect)")
+                        
+            except asyncio.CancelledError:
+                print(f"\n{Colors.YELLOW}Çıkılıyor...{Colors.RESET}")
+                return  # Don't reconnect on intentional exit
+            except Exception as e:
+                print(f"\n{Colors.YELLOW}Bağlantı koptu: {e}{Colors.RESET}")
                 
-                # Reset state for new session
-                self._last_input_transcription = ""
-                self._last_output_transcription = ""
-                self._skip_next_transcription = False
+                # Check if this is a session timeout/policy error (reconnectable)
+                # Handle Python 3.11+ ExceptionGroups from TaskGroup
+                should_reconnect = False
+                errors_to_check = [e]
+                if hasattr(e, 'exceptions'):
+                    errors_to_check.extend(e.exceptions)
+                    
+                for err in errors_to_check:
+                    err_str = str(err).lower()
+                    if any(x in err_str for x in ['1008', 'policy', 'timeout', 'closed', 'entity', 'auto-reconnect']):
+                        should_reconnect = True
+                        break
                 
-                # Recursive call to reconnect
-                await self.run()
-            else:
-                import traceback
-                print(f"\n{Colors.RED}Kritik hata: {e}{Colors.RESET}")
-                traceback.print_exc()
+                if should_reconnect:
+                    print(f"{Colors.CYAN}🔄 Otomatik yeniden bağlanılıyor...{Colors.RESET}")
+                    await asyncio.sleep(2)  # Brief pause before reconnect
+                    
+                    # Reset state for new session
+                    self._last_input_transcription = ""
+                    self._last_output_transcription = ""
+                    continue # Re-start the while loop to connect again
+                else:
+                    # Non-recoverable error? Let's try to reconnect anyway for robustness
+                    print(f"{Colors.RED}Beklenmedik hata, yine de 5sn sonra tekrar denenecek...{Colors.RESET}")
+                    await asyncio.sleep(5)
+                    continue
+
 
 
 def cleanup():

@@ -76,7 +76,15 @@ class AtomLogger:
         self.logger.handlers.clear()
         
         # Import config here to avoid circular import
-        from config import config
+        try:
+            from config import config
+        except ImportError:
+            try:
+                from AtomBase.config import config
+            except ImportError:
+                 # Fallback
+                sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+                from AtomBase.config import config
         
         # File handler (JSON)
         if config.log_file:

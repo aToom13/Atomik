@@ -471,6 +471,34 @@ TOOL_DECLARATIONS = [
             },
             "required": ["name"]
         }
+    },
+    {
+        "name": "open_application",
+        "description": "Bir uygulamayı doğrudan başlatır. Görsel arama yapmadan hızlıca açar. Örn: 'zen', 'spotify', 'terminal', 'youtube', 'gmail', veya 'https://...' linki.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "app_name": {
+                    "type": "STRING",
+                    "description": "Uygulama adı veya URL (zen, firefox, spotify, youtube, gmail, vpn_tr, https://...)"
+                }
+            },
+            "required": ["app_name"]
+        }
+    },
+    {
+        "name": "inspect_web_page",
+        "description": "Aktif web sayfasındaki tıklanabilir elemanları (DOM) ve koordinatlarını listeler.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "port": {
+                    "type": "INTEGER",
+                    "description": "Debug portu (Varsayılan: 9222)",
+                    "default": 9222
+                }
+            }
+        }
     }
 ]
 

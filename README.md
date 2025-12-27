@@ -12,6 +12,8 @@
     *   Fare ve klavyeyi kontrol ederek sizin yerinize işlemler yapabilir.
 *   **🧠 Hafıza ve Kişiselleştirme:** Sizi tanır, geçmiş konuşmaları hatırlar ve buna göre davranır.
 *   **🔧 Proaktif Davranış:** Sadece sorulduğunda değil, gerektiğinde kendiliğinden inisiyatif alarak konuşur (Örn: Hapşırdığınızda "Çok yaşa" der).
+*   **🔄 Kesintisiz İletişim (Auto-Reconnect):** Gemini Live API'nin 10 dakikalık oturum sınırını, kullanıcıya "ufak bir teknik aksaklık" gibi hissettirerek arka planda otomatik ve proaktif bir şekilde yeniler. Sohbet asla kesilmez.
+*   **🌐 Gelişmiş Web Gezgin:** `inspect_web_page` aracı ile web sayfalarının DOM yapısını analiz eder, sadece görünür (viewport) alanlara tıklar ve akıllı scroll navigasyonu (PageDown/Up) yapar.
 
 ## 🚀 Kurulum
 

@@ -2,5 +2,6 @@
   "topics": [
     "oyun geliştirme"
   ],
-  "prefers_short_responses": true
+  "prefers_short_responses": true,
+  "prefers_long_responses": true
 }

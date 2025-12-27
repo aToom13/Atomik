@@ -177,7 +177,7 @@ Eğer yoksa "found": false döndür."""
 
         response = await asyncio.to_thread(
             vision_client.models.generate_content,
-            model="gemini-3-flash-preview",
+            model="gemini-2.5-computer-use-preview-10-2025",
             contents=[
                 {"role": "user", "parts": [
                     {"text": prompt},

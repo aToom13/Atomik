@@ -50,7 +50,24 @@ def keyboard_key(key: str) -> str:
     key_map = {
         "enter": "Return",
         "esc": "Escape",
-        "backspace": "BackSpace"
+        "backspace": "BackSpace",
+        # Navigation keys (scroll için önemli)
+        "pagedown": "Page_Down",
+        "page down": "Page_Down",
+        "page_down": "Page_Down",
+        "pageup": "Page_Up",
+        "page up": "Page_Up",
+        "page_up": "Page_Up",
+        "home": "Home",
+        "end": "End",
+        "up": "Up",
+        "down": "Down",
+        "left": "Left",
+        "right": "Right",
+        "tab": "Tab",
+        "space": "space",
+        "delete": "Delete",
+        "insert": "Insert",
     }
     key = key_map.get(key.lower(), key)
     

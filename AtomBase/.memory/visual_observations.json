@@ -1,11 +1,5 @@
 [
   {
-    "timestamp": "2025-12-26T17:09:03.813061",
-    "date": "2025-12-26 17:09",
-    "notes": "Akif telefonda görüşme yapıyor.",
-    "attributes": {}
-  },
-  {
     "timestamp": "2025-12-26T17:09:52.264378",
     "date": "2025-12-26 17:09",
     "notes": "Akif gri uzun kollu tişört ve ekoseli pijama altı giyiyor. Rahat bir ev hali.",
@@ -117,6 +111,12 @@
     "timestamp": "2025-12-26T21:21:12.157768",
     "date": "2025-12-26 21:21",
     "notes": "Kullanıcı gerindi, kollarını kaldırdı ve yorgun görünüyor. Muhtemelen dinlenecek.",
+    "attributes": {}
+  },
+  {
+    "timestamp": "2025-12-27T01:24:06.695184",
+    "date": "2025-12-27 01:24",
+    "notes": "Late night, Akif is lying down and looks very tired. Previous mood was relaxed, significant change detected.",
     "attributes": {}
   }
 ]

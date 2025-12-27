@@ -581,6 +581,24 @@ def execute_tool(name: str, args: dict) -> str:
                 return add_project(name_val, status)
             except Exception as e:
                 return f"❌ Proje kaydetme hatası: {str(e)}"
+        
+        elif name == "open_application":
+            try:
+                from AtomBase.tools.execution import open_application
+                app_name_arg = args.get("app_name", "")
+                if not app_name_arg:
+                    return "❌ Uygulama adı gerekli."
+                return open_application.invoke({"app_name": app_name_arg})
+            except Exception as e:
+                return f"❌ Uygulama açma hatası: {str(e)}"
+        
+        elif name == "inspect_web_page":
+            try:
+                from AtomBase.tools.web_inspector import inspect_web_page
+                port = args.get("port", 9222)
+                return inspect_web_page.invoke({"port": port})
+            except Exception as e:
+                return f"❌ DOM analiz hatası: {str(e)}"
             
         else:
             return f"Unknown tool: {name}"

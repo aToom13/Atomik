@@ -9,8 +9,21 @@ import json
 from functools import lru_cache
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List, Dict
-from config import config
-from utils.logger import get_logger
+try:
+    from config import config
+except ImportError:
+    try:
+        from AtomBase.config import config
+    except ImportError:
+        # Fallback for when running directly
+        import sys
+        import os
+        sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+        from AtomBase.config import config
+try:
+    from utils.logger import get_logger
+except ImportError:
+    from AtomBase.utils.logger import get_logger
 
 WORKSPACE_DIR = config.workspace.base_dir
 logger = get_logger()
@@ -197,3 +210,60 @@ def run_terminal_command(command: str) -> str:
     
     # Güvenli, çalıştır
     return execute_command_direct(command)
+
+@tool
+def open_application(app_name: str) -> str:
+    """
+    Doğrudan uygulama başlatır (Mappings + URL + Fallback)
+    """
+    # 1. MAPPINGS
+    APP_MAP = {
+        # Native Apps
+        "zen": "flatpak run app.zen_browser.zen --remote-debugging-port=9222", # Debug port ile başlat
+        "browser": "flatpak run app.zen_browser.zen --remote-debugging-port=9222",
+        "tarayıcı": "flatpak run app.zen_browser.zen --remote-debugging-port=9222",
+        "firefox": "firefox",
+        "terminal": "gnome-terminal",
+        "files": "nautilus",
+        "code": "code", # Fallback
+        
+        # Web Apps (Always open in Zen with Debug Port)
+        "youtube": "flatpak run app.zen_browser.zen --remote-debugging-port=9222 --new-tab https://www.youtube.com",
+        "spotify": "flatpak run app.zen_browser.zen --remote-debugging-port=9222 --new-tab https://open.spotify.com",
+        "gmail": "flatpak run app.zen_browser.zen --remote-debugging-port=9222 --new-tab https://mail.google.com",
+        "whatsapp": "flatpak run app.zen_browser.zen --remote-debugging-port=9222 --new-tab https://web.whatsapp.com",
+        "chatgpt": "flatpak run app.zen_browser.zen --remote-debugging-port=9222 --new-tab https://chatgpt.com",
+        "github": "flatpak run app.zen_browser.zen --remote-debugging-port=9222 --new-tab https://github.com",
+    }
+    
+    cmd = ""
+    lower_app = app_name.lower().strip()
+    
+    # 1. Mapping kontrolü
+    if lower_app in APP_MAP:
+        cmd = APP_MAP[lower_app]
+    
+    # 2. URL kontrolü (http/https veya .com/.org vb.)
+    elif lower_app.startswith(("http://", "https://", "www.")):
+        cmd = f"flatpak run app.zen_browser.zen --remote-debugging-port=9222 --new-tab {app_name}"
+    elif "." in lower_app and " " not in lower_app: # Örn: google.com, atomik.app
+        cmd = f"flatpak run app.zen_browser.zen --remote-debugging-port=9222 --new-tab https://{app_name}"
+    
+    # 3. Fallback (Direkt komut olarak)
+    else:
+        # Basit güvenlik kontrolü (sadece alfanümerik ve tire)
+        import re
+        if re.match(r"^[a-zA-Z0-9_-]+$", lower_app):
+            cmd = lower_app
+        else:
+            return f"❌ Geçersiz uygulama adı: {app_name} (Güvenlik nedeniyle çalıştırılmadı)"
+
+    logger.info(f"Open Application: {app_name} -> {cmd}")
+    
+    # Arka planda çalıştır (Asenkron) - Timeout sorununu önlemek için
+    try:
+        import subprocess
+        subprocess.Popen(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+        return f"✅ Uygulama başlatıldı: {app_name} ({cmd})"
+    except Exception as e:
+        return f"❌ Başlatma hatası: {str(e)}"
