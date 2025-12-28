@@ -59,6 +59,8 @@ try:
         save_visual_observation, get_visual_history, 
         compare_with_last, get_visual_context_for_prompt
     )
+    from tools.web.web import visit_webpage
+    from tools.web.youtube import get_youtube_content
     ATOMBASE_AVAILABLE = True
     CODING_AVAILABLE = True
     MEMORY_AVAILABLE = True
@@ -82,6 +84,55 @@ def execute_tool(name: str, args: dict) -> str:
                 return json.dumps(state.cached_location, ensure_ascii=False)
             result = get_current_location.invoke({})
             return json.dumps(result, ensure_ascii=False)
+        elif name == "visit_webpage":
+            return visit_webpage(args.get("url"))
+            
+        elif name == "analyze_youtube":
+            url = args.get("url")
+            query = args.get("query")
+            
+            # İçeriği çek
+            data = get_youtube_content(url, query)
+            
+            if "error" in data:
+                return f"❌ YouTube Analiz Hatası: {data['error']}"
+                
+            # Prompt'u yükle
+            try:
+                with open("AtomBase/prompts/youtube_analysis.txt", "r") as f:
+                    system_prompt = f.read()
+            except:
+                return "❌ Prompt dosyası (youtube_analysis.txt) bulunamadı."
+                
+            # Modele gönderilecek içerik
+            user_content = f"""
+BAŞLIK: {data['metadata'].get('title')}
+KANAL: {data['metadata'].get('author')}
+AÇIKLAMA: {data['metadata'].get('description')}
+TRANSKRIPT:
+{data['transcript_preview']} (Tamamı analiz ediliyor...)
+
+KULLANICI SORUSU: {query if query else 'Genel Analiz İsteği'}
+"""
+            # Burada normalde LLM call yapılmalı ama executor sadece string dönüyor.
+            # Bu yüzden veriyi döndüreceğiz, model bunu yorumlayacak.
+            # VEYA direkt burada LLM çağrısı yapıp sonucu döndürebiliriz (DAHA İYİ).
+            # Ancak şimdilik veriyi zenginleştirip modele "Ben bunu buldum, sen analiz et" diyeceğiz.
+            
+            return f"""🎬 YOUTUBE VİDEO VERİSİ (Analiz Et):
+
+BAŞLIK: {data['metadata'].get('title')}
+KANAL: {data['metadata'].get('author')}
+SÜRE: {data['metadata'].get('duration')}s
+İZLENME: {data['metadata'].get('views')}
+
+AÇIKLAMA:
+{data['metadata'].get('description')[:500]}...
+
+ALTYAZI (TRANSKRIPT):
+{data['full_transcript'][:15000]} 
+
+(NOT: Altyazı çok uzunsa kırpılmış olabilir. Yukarıdaki metni kullanarak kullanıcının '{query}' sorusunu cevapla veya özet geç.)"""
         elif name == "list_files":
             return list_files.invoke({"directory": args.get("directory", ".")})
         elif name == "read_file":
@@ -619,6 +670,8 @@ def execute_tool(name: str, args: dict) -> str:
                 return inspect_web_page.invoke({"port": port})
             except Exception as e:
                 return f"❌ DOM analiz hatası: {str(e)}"
+        
+
         
         # ===== VIRTUAL WORKSPACE TOOLS =====
         elif name == "start_virtual_workspace":

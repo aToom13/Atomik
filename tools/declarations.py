@@ -347,6 +347,24 @@ TOOL_DECLARATIONS = [
     },
     # ===== WEB SCRAPER TOOL =====
     {
+        "name": "analyze_youtube",
+        "description": "Verilen bir YouTube videosunu analiz eder. Link üzerinden video içeriğini (altyazı ve meta veri) okuyarak özet çıkarır veya videoyla ilgili soruları cevaplar. Kullanıcı bir video linki verdiğinde veya ekranda Youtube açıkken analiz istendiğinde kullanılır.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "url": {
+                    "type": "STRING",
+                    "description": "Analiz edilecek YouTube videosunun linki (URL). Eğer verilmezse ve ekranda varsa 'CURRENT' yazılabilir."
+                },
+                "query": {
+                    "type": "STRING",
+                    "description": "Video hakkında sorulan özel soru (Opsiyonel). Boş bırakılırsa genel analiz/özet yapılır."
+                }
+            },
+            "required": ["url"]
+        }
+    },
+    {
         "name": "visit_webpage",
         "description": "Bir web sayfasını ziyaret edip içeriğini oku. Web search sonuçlarından detay almak için kullan.",
         "parameters": {
