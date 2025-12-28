@@ -7,3 +7,5 @@ atom_workspace/
 *.DS_Store
 AtomBase/prompts/supervisor.txt
 AtomBase/prompts/supervisor.txt
+AtomBase/prompts/supervisor.txt
+*_transcript.txt
