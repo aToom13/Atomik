@@ -3,7 +3,11 @@
     "user_profile": {
       "value": "Akif, 18, NYU Tirana Software Engineering student, Elbasan, Albania. Partner: Ela. Family: Fatih (Father), Aysel (Mother), Sina (Sister), Hilal (Sibling), Pet: Cat.",
       "timestamp": "2025-12-28T01:33:58.769858"
+    },
+    "last_session_summary": {
+      "value": "VNC bağlantı sorunu yaşandı (port 9220), Akif yardımı reddetti ve oturumu kapattı. Stresliydi.",
+      "timestamp": "2025-12-28T22:49:43.859634"
     }
   },
-  "updated": "2025-12-28T01:33:58.769965"
+  "updated": "2025-12-28T22:49:43.859793"
 }

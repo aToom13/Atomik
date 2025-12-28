@@ -203,7 +203,12 @@
       "mood": "stressed",
       "context": "Ekranında düşünceli görünüyordu, stresli hissettiğini düşünüyorum.",
       "timestamp": "2025-12-28T22:33:38.524851"
+    },
+    {
+      "mood": "stressed",
+      "context": "VNC bağlantı sorunu nedeniyle stresli, yardımı reddetti.",
+      "timestamp": "2025-12-28T22:49:41.648452"
     }
   ],
-  "last_updated": "2025-12-28T22:33:38.524888"
+  "last_updated": "2025-12-28T22:49:41.648507"
 }
