@@ -26,6 +26,23 @@ class VirtualWorkspace:
             cls._instance = cls()
         return cls._instance
     
+    def is_actually_running(self) -> bool:
+        """
+        Test if the virtual display is actually responding.
+        Returns True only if Xvfb is running and accepting connections.
+        """
+        try:
+            env = self._get_virtual_env()
+            result = subprocess.run(
+                ["xdpyinfo"],
+                env=env,
+                capture_output=True,
+                timeout=3
+            )
+            return result.returncode == 0
+        except:
+            return False
+    
     def _run_cmd(self, cmd: list, env: dict = None, capture: bool = True) -> Tuple[int, str]:
         """Komut çalıştır."""
         result = subprocess.run(
@@ -46,8 +63,10 @@ class VirtualWorkspace:
     
     def start(self) -> str:
         """Virtual workspace'i başlat (Xvfb + Remmina)."""
-        if self._is_running:
-            return "Virtual workspace zaten çalışıyor."
+        # First, check if it's ACTUALLY running (not just flag)
+        if self.is_actually_running():
+            self._is_running = True
+            return "✅ Virtual workspace zaten çalışıyor."
         
         # Önce eski süreçleri temizle
         self.stop()
@@ -196,10 +215,16 @@ class VirtualWorkspace:
     
     def open_app(self, app_command: str, maximize: bool = True) -> str:
         """Sanal ekranda uygulama aç."""
-        if not self._is_running:
+        # Check actual status, start if needed (auto-recovery)
+        if not self.is_actually_running():
+            print("🔄 Virtual workspace çalışmıyor, otomatik başlatılıyor...")
             start_result = self.start()
             if "❌" in start_result:
                 return start_result
+        else:
+            self._is_running = True
+            
+        env = self._get_virtual_env()
         
         env = self._get_virtual_env()
         
