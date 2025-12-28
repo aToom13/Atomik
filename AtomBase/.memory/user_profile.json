@@ -198,7 +198,12 @@
       "mood": "tired",
       "context": "Teknik sorunlar ve başarısız denemeler sonucu motivasyonu düşmüş, yorgun ve bıkkın görünüyor.",
       "timestamp": "2025-12-28T15:56:10.527920"
+    },
+    {
+      "mood": "stressed",
+      "context": "Ekranında düşünceli görünüyordu, stresli hissettiğini düşünüyorum.",
+      "timestamp": "2025-12-28T22:33:38.524851"
     }
   ],
-  "last_updated": "2025-12-28T15:56:10.528009"
+  "last_updated": "2025-12-28T22:33:38.524888"
 }

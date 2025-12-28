@@ -35,12 +35,47 @@ class WaylandScreenCapture:
                     pid = int(f.read().strip())
                 os.kill(pid, 0)  # Check if process exists
                 with open(NODE_FILE, 'r') as f:
-                    self.node_id = int(f.read().strip())
+                    node_id = int(f.read().strip())
+                
+                # IMPORTANT: Test if the node actually works
+                # Try to capture a single frame - if it fails, session is stale
+                result = subprocess.run(
+                    [
+                        'gst-launch-1.0', '-q',
+                        'pipewiresrc', f'path={node_id}', 'num-buffers=1', '!',
+                        'fakesink'
+                    ],
+                    capture_output=True,
+                    timeout=3
+                )
+                
+                if result.returncode != 0:
+                    # Node is stale, clean up
+                    print("⚠️ Eski session geçersiz, temizleniyor...")
+                    self._cleanup_stale_session()
+                    return False
+                
+                self.node_id = node_id
                 self.session_active = True
                 return True
-            except:
+            except subprocess.TimeoutExpired:
+                # Node is unresponsive, clean up
+                self._cleanup_stale_session()
+                return False
+            except Exception:
                 pass
         return False
+    
+    def _cleanup_stale_session(self):
+        """Clean up stale session files."""
+        for f in [NODE_FILE, PID_FILE]:
+            try:
+                os.unlink(f)
+            except:
+                pass
+        self.node_id = None
+        self.session_active = False
+        self._failed = False
         
     def start_session(self) -> bool:
         """Start portal session via persistent subprocess."""
