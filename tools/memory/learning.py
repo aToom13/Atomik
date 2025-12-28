@@ -8,8 +8,10 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any
 
 # Profile path
-WORKSPACE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PROFILE_PATH = os.path.join(WORKSPACE_DIR, "atom_workspace", "user_profile.json")
+# Profile path
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+MEMORY_DIR = os.path.join(BASE_DIR, "AtomBase", ".memory")
+PROFILE_PATH = os.path.join(MEMORY_DIR, "user_profile.json")
 
 # Default profile template
 DEFAULT_PROFILE = {
@@ -156,6 +158,12 @@ def get_startup_context() -> str:
     """Get context to inject at session start."""
     parts = []
     
+    # Header - CRITICAL: Tell AI this is background info, NOT tasks to continue
+    parts.append("⚠️ ÖNEMLİ: Aşağıdaki bilgiler ARKA PLAN BİLGİSİDİR. Bunlar eski oturumlardan geliyor.")
+    parts.append("❌ Bu bilgilerden DEVAM ETME. Kullanıcı yeni bir konuşma başlatıyor.")
+    parts.append("✅ Sadece referans olarak kullan, sorulursa hatırla.")
+    parts.append("")
+    
     # 1. Load profile
     profile = load_profile()
     
@@ -168,11 +176,11 @@ def get_startup_context() -> str:
         prefs = ", ".join([f"{k}: {v}" for k, v in list(profile["preferences"].items())[:5]])
         parts.append(f"⚙️ Tercihler: {prefs}")
     
-    # 4. Active projects
+    # 4. Active projects (info only, don't continue)
     active_projects = [p for p in profile["projects"] if p.get("status") != "completed"]
     if active_projects:
         proj_list = ", ".join([f"{p['name']} ({p.get('status', 'active')})" for p in active_projects[:3]])
-        parts.append(f"📂 Aktif projeler: {proj_list}")
+        parts.append(f"📂 Bilinen projeler: {proj_list}")
     
     # 5. Recent mood
     if profile["mood_log"]:
@@ -184,17 +192,15 @@ def get_startup_context() -> str:
         facts = "; ".join(profile["facts"][:3])
         parts.append(f"📝 Bilgiler: {facts}")
     
-    # 7. Try to get recent memories from RAG
-    try:
-        from AtomBase.tools.rag_memory import get_recent_memories
-        memories = get_recent_memories(3)
-        if memories and "Henüz" not in memories:
-            parts.append(f"🧠 Son hatıralar:\n{memories}")
-    except:
-        pass
+    # 7. SKIP recent memories to avoid "continuing" old tasks
+    # These were causing the AI to try to continue old conversations
+    # Only load if explicitly requested by user
     
-    if not parts:
+    if len(parts) <= 4:  # Only header lines
         return ""
+    
+    parts.append("")
+    parts.append("🆕 Yeni oturum başladı. Kullanıcıyı selamla ve NE İSTEDİĞİNİ SOR.")
     
     return "\n".join(parts)
 

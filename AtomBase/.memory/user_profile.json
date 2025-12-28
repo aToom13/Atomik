@@ -1,0 +1,204 @@
+{
+  "name": "Akif",
+  "preferences": {
+    "favorite_color": "yeşilimsi mavi",
+    "ui_theme": "dark mode"
+  },
+  "projects": [
+    {
+      "name": "Atomik",
+      "status": "active",
+      "created": "2025-12-26T21:59:29.558800",
+      "updated": "2025-12-28T01:34:47.698075"
+    }
+  ],
+  "facts": [],
+  "mood_log": [
+    {
+      "mood": "focused",
+      "context": "Late night coding",
+      "timestamp": "2025-12-26T21:59:29.558612"
+    },
+    {
+      "mood": "focused",
+      "context": "Gece vakti, tarayıcı sorununu çözmeye çalışıyor, yorgun görünüyor.",
+      "timestamp": "2025-12-26T23:26:55.419726"
+    },
+    {
+      "mood": "tired",
+      "context": "Yorgun görünüyor, elini başına yaslamış, saat geç.",
+      "timestamp": "2025-12-26T23:27:41.777790"
+    },
+    {
+      "mood": "focused",
+      "context": "",
+      "timestamp": "2025-12-26T23:54:29.868706"
+    },
+    {
+      "mood": "focused",
+      "context": "",
+      "timestamp": "2025-12-26T23:56:04.470761"
+    },
+    {
+      "mood": "tired",
+      "context": "Gece yarısı, yorgun ve stresli görünüyor. Sürekli başarısız araç denemeleri sonrası.",
+      "timestamp": "2025-12-26T23:58:45.087764"
+    },
+    {
+      "mood": "stressed",
+      "context": "Tüm başarısız denemeler ve geçişlerin ardından terminalde tekrar hata belirdi. Çok yorgun görünüyor.",
+      "timestamp": "2025-12-27T00:02:30.618733"
+    },
+    {
+      "mood": "tired",
+      "context": "Geç saatte tekrar deneme isteği ve yorgun görünüm",
+      "timestamp": "2025-12-27T00:04:25.617815"
+    },
+    {
+      "mood": "stressed",
+      "context": "Ela'nın uzun süre uyuması konusunda endişeli",
+      "timestamp": "2025-12-27T01:16:20.248479"
+    },
+    {
+      "mood": "relaxed",
+      "context": "Sohbetin ardından modu düzeldi",
+      "timestamp": "2025-12-27T01:18:10.528431"
+    },
+    {
+      "mood": "tired",
+      "context": "",
+      "timestamp": "2025-12-27T01:24:05.562819"
+    },
+    {
+      "mood": "happy",
+      "context": "User enjoyed the conversation and wants to continue. Looks more awake now.",
+      "timestamp": "2025-12-27T01:24:31.640060"
+    },
+    {
+      "mood": "relaxed",
+      "context": "",
+      "timestamp": "2025-12-27T01:26:20.130064"
+    },
+    {
+      "mood": "happy",
+      "context": "Planning fun New Year activities, user is smiling and engaged.",
+      "timestamp": "2025-12-27T01:29:36.273330"
+    },
+    {
+      "mood": "tired",
+      "context": "",
+      "timestamp": "2025-12-27T01:31:38.327028"
+    },
+    {
+      "mood": "happy",
+      "context": "testing",
+      "timestamp": "2025-12-27T10:27:32.852276"
+    },
+    {
+      "mood": "happy",
+      "context": "",
+      "timestamp": "2025-12-27T21:19:09.265287"
+    },
+    {
+      "mood": "tired",
+      "context": "Kullanıcının gözleri kapalı ve başı öne eğik, yorgun görünüyor.",
+      "timestamp": "2025-12-27T22:00:19.661894"
+    },
+    {
+      "mood": "tired",
+      "context": "Aniden masaya yığıldı, kadrajdan çıktı. Ciddi yorgunluk belirtisi.",
+      "timestamp": "2025-12-27T22:55:55.773985"
+    },
+    {
+      "mood": "tired",
+      "context": "Yorgun olduğunu reddetti ancak hala dalgın görünüyor.",
+      "timestamp": "2025-12-27T22:56:23.169826"
+    },
+    {
+      "mood": "tired",
+      "context": "",
+      "timestamp": "2025-12-28T00:59:06.461998"
+    },
+    {
+      "mood": "tired",
+      "context": "Çok yorgun görünüyordu, bir an dinlendi ama tekrar doğruldu.",
+      "timestamp": "2025-12-28T01:00:51.065918"
+    },
+    {
+      "mood": "tired",
+      "context": "Gece yarısı, yorgun olmasına rağmen arkadaşına şaka için network konularını düşünüyor.",
+      "timestamp": "2025-12-28T01:03:02.880084"
+    },
+    {
+      "mood": "happy",
+      "context": "Yılan oyununu beğendi, eğlendi",
+      "timestamp": "2025-12-28T01:11:30.129340"
+    },
+    {
+      "mood": "tired",
+      "context": "Tekrar uykuya dalıyor gibi görünüyor, yorgunluğu devam ediyor.",
+      "timestamp": "2025-12-28T01:14:15.873211"
+    },
+    {
+      "mood": "tired",
+      "context": "Teknik aksaklık bahanesiyle uykuya daldı, çok yorgun.",
+      "timestamp": "2025-12-28T01:18:28.272710"
+    },
+    {
+      "mood": "focused",
+      "context": "Beyaz kağıt gösteriyor, odaklanmış görünüyor",
+      "timestamp": "2025-12-28T01:19:24.862933"
+    },
+    {
+      "mood": "neutral",
+      "context": "Erotik hikaye sonrası yüz ifadesi sakin ve ciddi.",
+      "timestamp": "2025-12-28T01:25:11.762259"
+    },
+    {
+      "mood": "tired",
+      "context": "Oldukça uykulu, esniyor ve gözleri kapanıyor. Dinlenmeye ihtiyacı var.",
+      "timestamp": "2025-12-28T01:25:44.609908"
+    },
+    {
+      "mood": "neutral",
+      "context": "Çok yorgun olmasına rağmen ekrana odaklanmaya çalışıyor, burnout belirtisi olabilir.",
+      "timestamp": "2025-12-28T01:31:47.637046"
+    },
+    {
+      "mood": "neutral",
+      "context": "Hafıza temizleme sonrası nötr durum",
+      "timestamp": "2025-12-28T01:33:59.376362"
+    },
+    {
+      "mood": "neutral",
+      "context": "Şaka sonrası hafıza temizlendi, kritik bilgiler geri yüklendi",
+      "timestamp": "2025-12-28T01:34:48.117791"
+    },
+    {
+      "mood": "tired",
+      "context": "Tekrar kadraja girdi, yorgun görünüyor.",
+      "timestamp": "2025-12-28T13:44:56.865858"
+    },
+    {
+      "mood": "focused",
+      "context": "Oyun başında odaklandı, düşündü ve pozisyon değiştirdi.",
+      "timestamp": "2025-12-28T14:47:19.039686"
+    },
+    {
+      "mood": "focused",
+      "context": "Evrimli Flappy Bird oyunu istiyor, odaklanmış ve aceleci",
+      "timestamp": "2025-12-28T14:54:08.743043"
+    },
+    {
+      "mood": "stressed",
+      "context": "teknik aksaklık nedeniyle bağlantıyı yenileyecek",
+      "timestamp": "2025-12-28T15:01:29.470408"
+    },
+    {
+      "mood": "tired",
+      "context": "Teknik sorunlar ve başarısız denemeler sonucu motivasyonu düşmüş, yorgun ve bıkkın görünüyor.",
+      "timestamp": "2025-12-28T15:56:10.527920"
+    }
+  ],
+  "last_updated": "2025-12-28T15:56:10.528009"
+}

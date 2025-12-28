@@ -12,6 +12,23 @@ if _project_root not in sys.path:
 from core import state
 from core.colors import Colors
 
+# ===== NEW: Unified Memory & Error Handler =====
+try:
+    from tools.memory.unified_memory import get_memory_system
+    UNIFIED_MEMORY_AVAILABLE = True
+except ImportError:
+    get_memory_system = None
+    UNIFIED_MEMORY_AVAILABLE = False
+
+try:
+    from core.error_handler import get_error_handler, get_atomik_logger
+    ERROR_HANDLER_AVAILABLE = True
+except ImportError:
+    get_error_handler = None
+    get_atomik_logger = None
+    ERROR_HANDLER_AVAILABLE = False
+# ===============================================
+
 # AtomBase tool imports
 ATOMBASE_AVAILABLE = False
 CODING_AVAILABLE = False
@@ -28,17 +45,17 @@ if _atombase_path not in sys.path:
 
 try:
     from AtomBase.tools.basic import get_current_time, run_neofetch
-    from AtomBase.tools.location import get_current_location
+    from tools.system.location import get_current_location
     from AtomBase.tools.files import list_files, read_file, write_file, scan_workspace
     from AtomBase.tools.execution import run_terminal_command
-    from AtomBase.tools.coding import delegate_coding, save_generated_code
+    from tools.dev.coding import delegate_coding, save_generated_code
     from AtomBase.tools.memory import (
         save_context, get_context_info, get_memory_stats, clear_memory,
         add_to_history, get_all_context, get_user_name
     )
-    from AtomBase.tools.weather import get_weather
-    from AtomBase.tools.camera import capture_frame, get_camera_payload
-    from AtomBase.tools.visual_memory import (
+    from tools.system.weather import get_weather
+    from tools.system.camera import capture_frame, get_camera_payload
+    from tools.memory.visual_memory import (
         save_visual_observation, get_visual_history, 
         compare_with_last, get_visual_context_for_prompt
     )
@@ -132,6 +149,9 @@ def execute_tool(name: str, args: dict) -> str:
         elif name == "stop_screen_share":
             state.video_mode = "camera"
             return "📷 Ekran paylaşımı durduruldu. Kameraya geri dönüyorum!"
+        elif name == "share_workspace_screen":
+            state.video_mode = "workspace"
+            return "🖥️ Sanal ekranı (Virtual Workspace) izlemeye başlıyorum. Artık 2. masaüstündeki uygulamaları görebiliyorum!"
         # Proactive Tools
         elif name == "set_reminder":
             from core.proactive import set_reminder as _set_reminder
@@ -350,7 +370,7 @@ def execute_tool(name: str, args: dict) -> str:
         # ===== RAG MEMORY TOOLS =====
         elif name == "remember_this":
             try:
-                from AtomBase.tools.rag_memory import remember_conversation
+                from tools.memory.rag_memory import remember_conversation
                 summary = args.get("summary", "")
                 topic = args.get("topic", "")
                 
@@ -361,7 +381,7 @@ def execute_tool(name: str, args: dict) -> str:
         
         elif name == "recall_memory":
             try:
-                from AtomBase.tools.rag_memory import recall_memory
+                from tools.memory.rag_memory import recall_memory
                 query = args.get("query", "")
                 return recall_memory(query)
             except Exception as e:
@@ -369,7 +389,7 @@ def execute_tool(name: str, args: dict) -> str:
         
         elif name == "get_recent_memories":
             try:
-                from AtomBase.tools.rag_memory import get_recent_memories
+                from tools.memory.rag_memory import get_recent_memories
                 days = args.get("days", 7)
                 return get_recent_memories(days)
             except Exception as e:
@@ -435,7 +455,7 @@ def execute_tool(name: str, args: dict) -> str:
         # ===== SESSION HISTORY TOOLS =====
         elif name == "search_chat_history":
             try:
-                from AtomBase.tools.session_db import search_history
+                from tools.memory.session_db import search_history
                 query = args.get("query", "")
                 return search_history(query)
             except Exception as e:
@@ -443,7 +463,7 @@ def execute_tool(name: str, args: dict) -> str:
         
         elif name == "get_chat_stats":
             try:
-                from AtomBase.tools.session_db import get_stats
+                from tools.memory.session_db import get_stats
                 return get_stats()
             except Exception as e:
                 return f"İstatistik hatası: {str(e)}"
@@ -553,7 +573,7 @@ def execute_tool(name: str, args: dict) -> str:
         # ===== LEARNING TOOLS =====
         elif name == "log_mood":
             try:
-                from AtomBase.tools.learning import log_mood
+                from tools.memory.learning import log_mood
                 mood = args.get("mood", "neutral")
                 context = args.get("context", "")
                 return log_mood(mood, context)
@@ -562,7 +582,7 @@ def execute_tool(name: str, args: dict) -> str:
         
         elif name == "update_preference":
             try:
-                from AtomBase.tools.learning import update_preference
+                from tools.memory.learning import update_preference
                 key = args.get("key", "")
                 value = args.get("value", "")
                 if not key or not value:
@@ -573,7 +593,7 @@ def execute_tool(name: str, args: dict) -> str:
         
         elif name == "add_project":
             try:
-                from AtomBase.tools.learning import add_project
+                from tools.memory.learning import add_project
                 name_val = args.get("name", "")
                 status = args.get("status", "active")
                 if not name_val:
@@ -594,11 +614,395 @@ def execute_tool(name: str, args: dict) -> str:
         
         elif name == "inspect_web_page":
             try:
-                from AtomBase.tools.web_inspector import inspect_web_page
+                from tools.web.web_inspector import inspect_web_page
                 port = args.get("port", 9222)
                 return inspect_web_page.invoke({"port": port})
             except Exception as e:
                 return f"❌ DOM analiz hatası: {str(e)}"
+        
+        # ===== VIRTUAL WORKSPACE TOOLS =====
+        elif name == "start_virtual_workspace":
+            try:
+                from tools.system.workspace import start_virtual_workspace
+                return start_virtual_workspace()
+            except Exception as e:
+                return f"❌ Virtual workspace başlatma hatası: {str(e)}"
+        
+        elif name == "stop_virtual_workspace":
+            try:
+                from tools.system.workspace import stop_virtual_workspace
+                return stop_virtual_workspace()
+            except Exception as e:
+                return f"❌ Virtual workspace durdurma hatası: {str(e)}"
+        
+        elif name == "capture_active_window":
+            try:
+                from tools.system.workspace import capture_active_window
+                return capture_active_window()
+            except Exception as e:
+                return f"❌ Pencere yakalama hatası: {str(e)}"
+        
+        elif name == "release_captured_window":
+            try:
+                from tools.system.workspace import release_captured_window
+                return release_captured_window()
+            except Exception as e:
+                return f"❌ Pencere serbest bırakma hatası: {str(e)}"
+        
+        elif name == "open_app_in_workspace":
+            try:
+                from tools.system.workspace import open_app_in_workspace
+                app = args.get("app", "")
+                maximize = args.get("maximize", True)
+                if not app:
+                    return "❌ Uygulama komutu gerekli."
+                return open_app_in_workspace(app, maximize)
+            except Exception as e:
+                return f"❌ Uygulama açma hatası: {str(e)}"
+        
+        elif name == "type_in_workspace":
+            try:
+                from tools.system.workspace import type_in_workspace
+                text = args.get("text", "")
+                if not text:
+                    return "❌ Metin gerekli."
+                return type_in_workspace(text)
+            except Exception as e:
+                return f"❌ Yazma hatası: {str(e)}"
+        
+        elif name == "send_key_in_workspace":
+            try:
+                from tools.system.workspace import send_key_in_workspace
+                key = args.get("key", "")
+                if not key:
+                    return "❌ Tuş gerekli."
+                return send_key_in_workspace(key)
+            except Exception as e:
+                return f"❌ Tuş gönderme hatası: {str(e)}"
+        
+        elif name == "click_in_workspace":
+            try:
+                from tools.system.workspace import click_in_workspace
+                x = args.get("x")
+                y = args.get("y")
+                if x is None or y is None:
+                    return "❌ X ve Y koordinatları gerekli."
+                return click_in_workspace(x, y)
+            except Exception as e:
+                return f"❌ Tıklama hatası: {str(e)}"
+        
+        elif name == "focus_window_in_workspace":
+            try:
+                from tools.system.workspace import focus_window_in_workspace
+                window_name = args.get("window_name", "")
+                if not window_name:
+                    return "❌ Pencere adı gerekli."
+                return focus_window_in_workspace(window_name)
+            except Exception as e:
+                return f"❌ Fokus hatası: {str(e)}"
+        
+        # ===== CALCODER PRO TOOLS =====
+        elif name == "write_code_advanced":
+            try:
+                from tools.dev.calcoder_pro import write_code_advanced
+                task = args.get("task", "")
+                if not task:
+                    return "❌ Görev (task) gerekli."
+                complexity = args.get("complexity", "auto")
+                context = args.get("context", None)
+                result = write_code_advanced(task, complexity, context)
+                
+                status = result.get("status", "")
+                if status in ["success", "fixed", "partial"]:
+                    files = result.get("files") or {result.get("filename"): result.get("code")}
+                    file_list = ", ".join(files.keys()) if files else "?"
+                    message = result.get("message", "Kod oluşturuldu!")
+                    filepath = result.get("filepath", "atom_workspace/")
+                    
+                    # Stats varsa ekle
+                    stats = result.get("stats")
+                    if stats:
+                        message += f"\n📊 {stats.get('total_files', 0)} dosya, {stats.get('fixed_count', 0)} düzeltme"
+                    
+                    return f"✅ {message}\nDosyalar: {file_list}"
+                else:
+                    # Hata durumu - detaylı bilgi göster
+                    error = result.get("error", "")
+                    details = result.get("details", [])
+                    message = result.get("message", "Kod oluşturulamadı")
+                    
+                    error_text = f"❌ {message}"
+                    if error:
+                        error_text += f"\nHata: {error}"
+                    if details:
+                        error_text += f"\nDetaylar: {'; '.join(details[:3])}"
+                    
+                    return error_text
+            except Exception as e:
+                import traceback
+                logger.error(f"CalcoderPro exception: {traceback.format_exc()}")
+                return f"❌ CalcoderPro hatası: {str(e)}"
+        
+        elif name == "fix_code_file":
+            try:
+                from tools.dev.calcoder_pro import fix_code_file
+                filename = args.get("filename", "")
+                error_message = args.get("error_message", "")
+                if not filename or not error_message:
+                    return "❌ Dosya adı ve hata mesajı gerekli."
+                result = fix_code_file(filename, error_message)
+                
+                if result.get("status") == "fixed":
+                    return f"✅ Kod düzeltildi ({result.get('attempts', 1)}. denemede)."
+                else:
+                    return f"❌ Düzeltilemedi: {result.get('error', 'Bilinmeyen hata')}"
+            except Exception as e:
+                return f"❌ Düzeltme hatası: {str(e)}"
+        
+        elif name == "run_code_tests":
+            try:
+                from tools.dev.calcoder_pro import run_code_tests
+                # Accept both 'filename' and 'path' parameters
+                filename = args.get("filename") or args.get("path", "")
+                if not filename:
+                    return "❌ Dosya adı gerekli."
+                
+                # If it's a full path, extract filename
+                if "/" in filename:
+                    filename = filename.split("/")[-1]
+                
+                result = run_code_tests(filename)
+                
+                if result.get("success"):
+                    return f"✅ Test başarılı!\n{result.get('output', '')[:500]}"
+                else:
+                    return f"❌ Test başarısız: {result.get('error', '')[:500]}"
+            except Exception as e:
+                return f"❌ Test hatası: {str(e)}"
+        
+        # ===== UNIFIED VISION TOOL =====
+        elif name == "see_screen":
+            try:
+                from core.unified_vision import see_screen as _see_screen
+                task = args.get("task")  # "oku", "anla", None
+                region = args.get("region")  # "alt", "üst-sağ", etc.
+                find = args.get("find")  # element name to find
+                
+                result = _see_screen(task=task, region=region, find=find)
+                
+                if "error" in result:
+                    return f"❌ Görme hatası: {result['error']}"
+                
+                # Format response based on task type
+                if find:
+                    # Element finding mode
+                    if result.get("found"):
+                        coords = result.get("coordinates", [])
+                        cx = result.get("center_x", 500)
+                        cy = result.get("center_y", 500)
+                        
+                        # Convert to pixels (assume 1920x1080)
+                        from core.computer import get_screen_size
+                        WIDTH, HEIGHT = 1920, 1080
+                        try:
+                            dims = get_screen_size().strip().split("x")
+                            if len(dims) == 2:
+                                WIDTH, HEIGHT = int(dims[0]), int(dims[1])
+                        except:
+                            pass
+                        
+                        pixel_x = int((cx / 1000) * WIDTH)
+                        pixel_y = int((cy / 1000) * HEIGHT)
+                        
+                        return f"✅ '{find}' bulundu: [{pixel_x}, {pixel_y}]\n📍 {result.get('description', '')}"
+                    else:
+                        return f"❌ '{find}' bulunamadı. {result.get('description', '')}"
+                
+                elif task in ["oku", "read", "metin"]:
+                    # Text reading mode
+                    urls = result.get("urls", [])
+                    all_text = result.get("all_text", "")
+                    important = result.get("important_text", [])
+                    
+                    response = f"📖 Ekrandaki Metinler:\n{all_text[:1500]}"
+                    if urls:
+                        response += f"\n\n🔗 Bulunan URL'ler:\n" + "\n".join(f"  • {u}" for u in urls)
+                    if important:
+                        response += f"\n\n⭐ Önemli:\n" + "\n".join(f"  • {t}" for t in important[:5])
+                    
+                    return response
+                
+                else:
+                    # General analysis mode
+                    app = result.get("application", "Bilinmiyor")
+                    activity = result.get("activity", "")
+                    summary = result.get("content_summary", "")
+                    items = result.get("important_items", [])
+                    errors = result.get("errors_or_warnings", [])
+                    
+                    response = f"🖥️ {app}\n📝 {activity}\n📋 {summary}"
+                    if items:
+                        response += f"\n\n📌 Önemli:\n" + "\n".join(f"  • {i}" for i in items[:5])
+                    if errors:
+                        response += f"\n\n⚠️ Hatalar:\n" + "\n".join(f"  • {e}" for e in errors[:3])
+                    
+                    return response
+                    
+            except Exception as e:
+                return f"❌ Görme hatası: {str(e)}"
+        
+        # Legacy vision tools (deprecated - redirect to see_screen)
+        elif name in ["analyze_view", "identify_object", "read_my_emotion", 
+                      "analyze_screen_content", "detect_gesture"]:
+            return f"⚠️ '{name}' eskimiş araç. Bunun yerine 'see_screen' kullan."
+        
+        # ===== CONTEXTUAL LEARNING TOOLS =====
+        elif name == "learn_from_feedback":
+            try:
+                from tools.learning.contextual_learning import learn_from_feedback
+                context = args.get("context", "")
+                correct_steps = args.get("correct_steps", [])
+                explanation = args.get("explanation", None)
+                
+                if not context or not correct_steps:
+                    return "❌ Context ve correct_steps gerekli."
+                
+                result = learn_from_feedback(context, correct_steps, explanation)
+                
+                if result.get("status") == "success":
+                    return f"🧠 Öğrendim: {context}\nDoğru adımlar: {', '.join(correct_steps)}"
+                else:
+                    return f"❌ Öğrenme hatası: {result.get('error', 'Bilinmeyen hata')}"
+            except Exception as e:
+                return f"❌ Öğrenme hatası: {str(e)}"
+        
+        elif name == "what_did_i_learn":
+            try:
+                from tools.learning.contextual_learning import what_did_i_learn
+                topic = args.get("topic", None)
+                result = what_did_i_learn(topic)
+                
+                if topic and result.get("found"):
+                    pattern = result["pattern"]
+                    return f"🧠 {topic} için öğrenilen:\n→ Doğru: {pattern.get('correct_pattern')}\n→ Güven: {pattern.get('confidence', 0)*100:.0f}%"
+                elif "patterns" in result:
+                    count = len(result["patterns"])
+                    stats = result.get("statistics", {})
+                    return f"🧠 Toplam {count} kalıp öğrenilmiş.\nKullanım: {stats.get('total_successful_uses', 0)}\nOrt. Güven: {stats.get('average_confidence', 0)*100:.0f}%"
+                else:
+                    return f"🧠 '{topic}' için öğrenilmiş kalıp yok."
+            except Exception as e:
+                return f"❌ Öğrenme sorgulama hatası: {str(e)}"
+        
+        elif name == "forget_learning":
+            try:
+                from tools.learning.contextual_learning import forget_learning
+                context = args.get("context", "")
+                if not context:
+                    return "❌ Context gerekli."
+                
+                result = forget_learning(context)
+                
+                if result.get("status") == "success":
+                    return f"🧹 Unuttum: {context}"
+                else:
+                    return f"❌ '{context}' zaten öğrenilmemiş."
+            except Exception as e:
+                return f"❌ Unutma hatası: {str(e)}"
+        
+        # ===== TASK MANAGER TOOLS =====
+        elif name == "add_task":
+            try:
+                from tools.tasks.task_manager import add_task as tm_add_task
+                action = args.get("action", "")
+                if not action:
+                    return "❌ Görev açıklaması (action) gerekli."
+                
+                deadline = args.get("deadline", None)
+                priority = args.get("priority", "medium")
+                category = args.get("category", "personal")
+                
+                result = tm_add_task(action, deadline, priority, category)
+                
+                if result.get("status") == "success":
+                    task = result["task"]
+                    deadline_str = f" (Deadline: {deadline})" if deadline else ""
+                    return f"📋 Görev eklendi: {action}{deadline_str}"
+                else:
+                    return f"❌ Görev eklenemedi: {result.get('error', 'Bilinmeyen hata')}"
+            except Exception as e:
+                return f"❌ Görev ekleme hatası: {str(e)}"
+        
+        elif name == "complete_task":
+            try:
+                from tools.tasks.task_manager import complete_task as tm_complete_task
+                task_id = args.get("task_id", "")
+                if not task_id:
+                    return "❌ Görev ID'si gerekli."
+                
+                result = tm_complete_task(task_id)
+                
+                if result.get("status") == "success":
+                    return f"✅ Görev tamamlandı!"
+                else:
+                    return f"❌ Görev bulunamadı: {task_id}"
+            except Exception as e:
+                return f"❌ Görev tamamlama hatası: {str(e)}"
+        
+        elif name == "list_tasks":
+            try:
+                from tools.tasks.task_manager import list_tasks as tm_list_tasks
+                filter_type = args.get("filter_type", "all")
+                result = tm_list_tasks(filter_type)
+                
+                if result.get("status") == "success":
+                    tasks = result["tasks"]
+                    
+                    if filter_type == "all":
+                        active = len(tasks.get("active", []))
+                        pending = len(tasks.get("pending", []))
+                        completed = len(tasks.get("completed", []))
+                        return f"📋 Görevler:\n• Aktif: {active}\n• Bekleyen: {pending}\n• Tamamlanan: {completed}"
+                    else:
+                        if isinstance(tasks, list):
+                            if not tasks:
+                                return f"📋 {filter_type} kategorisinde görev yok."
+                            task_list = "\n".join([f"• {t.get('action', '?')}" for t in tasks[:5]])
+                            return f"📋 {filter_type.capitalize()} görevler:\n{task_list}"
+                        return f"📋 {len(tasks)} görev bulundu."
+                else:
+                    return f"❌ Görev listesi alınamadı."
+            except Exception as e:
+                return f"❌ Görev listeleme hatası: {str(e)}"
+        
+        elif name == "get_task_summary":
+            try:
+                from tools.tasks.task_manager import get_task_summary
+                result = get_task_summary()
+                
+                return f"📋 {result.get('message', 'Görev özeti alınamadı')}"
+            except Exception as e:
+                return f"❌ Görev özeti hatası: {str(e)}"
+        
+        elif name == "process_task_from_text":
+            try:
+                from tools.tasks.task_manager import process_task_from_text
+                text = args.get("text", "")
+                if not text:
+                    return "❌ Metin gerekli."
+                
+                result = process_task_from_text(text)
+                
+                if result.get("status") == "success":
+                    task = result["task"]
+                    deadline_str = f" (Deadline: {task.get('deadline')})" if task.get('deadline') else ""
+                    return f"📋 Görev tespit edildi ve eklendi: {task.get('action', '?')}{deadline_str}"
+                elif result.get("status") == "no_task":
+                    return "ℹ️ Bu cümlede görev tespit edilemedi."
+                else:
+                    return f"❌ Hata: {result.get('error', 'Bilinmeyen')}"
+            except Exception as e:
+                return f"❌ Görev çıkarma hatası: {str(e)}"
             
         else:
             return f"Unknown tool: {name}"

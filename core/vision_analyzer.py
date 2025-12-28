@@ -21,66 +21,22 @@ except Exception as e:
 _previous_frame = None
 
 # Detailed prompt explaining the analyzer's role
-ANALYZER_PROMPT = """Sen arka planda çalışan "Gözlemci" yapay zekasın.
-Görevin: İki görüntüyü karşılaştırıp değişiklikleri analiz etmek ve bunun "Sözlü Tepki"ye mi yoksa sadece "Hafıza"ya mı atılması gerektiğine karar vermek.
+import os
 
-## Girdi
-1. Önceki Görüntü
-2. Şimdiki Görüntü
+# Load prompt from file
+try:
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__))) # core -> root
+    prompt_path = os.path.join(base_dir, "AtomBase", "prompts", "vision_analyzer.txt")
+    
+    with open(prompt_path, "r", encoding="utf-8") as f:
+        ANALYZER_PROMPT = f.read()
+except Exception as e:
+    print(f"Warning: Could not load vision prompt from file: {e}")
+    # Fallback prompt (Minimal version to avoid crash)
+    ANALYZER_PROMPT = """Sen arka planda çalışan "Gözlemci" yapay zekasın.
+    Görevin: İki görüntüyü karşılaştırıp değişiklikleri analiz etmek.
+    SADECE JSON döndür: { "type": "NONE" } (Fallback)"""
 
-## Karar Mekanizması
-Her değişiklik için şu soruyu sor: "Bu durum, senin arkadaşınla aynı odada olsaydın, sessizliği bozup konuşmanı gerektirir miydi?"
-
-### 1. [INTERACTION] - Sözlü Tepki Gerektirenler
-Gerçekten konuşmaya değer, bariz ve önemli durumlar.
-*   Kullanıcı doğrudan sana/kameraya bir şey gösteriyor.
-*   Kullanıcı odaya girdi veya odadan çıktı.
-*   Kullanıcı önemli bir kaza geçirdi veya düştü.
-*   Ekranda KRİTİK bir hata mesajı belirdi (kırmızı uyarılar).
-*   Kullanıcı çok belirgin bir şekilde el sallıyor veya dikkat çekmeye çalışıyor.
-*   Çok uzun süredir stabil dururken aniden çok büyük bir değişim oldu (örn: uyuyordu, birden sıçradı).
-*   Kullanıcı MASAYA YIĞILDI veya BAYILDI (Acil durum).
-*   Kullanıcı uzun süre hareketsiz kaldıktan sonra UYANDI (Gözlerini açtı, gerindi).
-
-### 2. [MEMORY] - Sadece Hafızaya Atılacaklar
-Görülmesi gereken ama üzerine konuşulması ŞART olmayan durumlar. Sessizce not edilmeli.
-*   Kullanıcı gözlerini kapattı (Düşünüyor veya dinleniyor olabilir - RAHATSIZ ETME).
-*   Kullanıcı yatakta/koltukta uzanıyor (Sohbet ediyorsa bu UYKU değildir).
-*   Kullanıcı telefonunu eline aldı.
-*   Kullanıcı su içti.
-*   Kullanıcı pozisyon değiştirdi (oturdu, yattı, bacak bacak üstüne attı).
-*   Kullanıcı ekranda uygulama değiştirdi (VS Code -> Browser).
-*   Kullanıcı gözlük taktı/çıkardı.
-*   Kullanıcı esnedi.
-
-### 3. [NONE] - Önemsiz
-*   Küçük kafa hareketleri.
-*   Işık değişimi.
-*   Kamera titremesi.
-*   Videodaki hareketler.
-
-## Çıktı Formatı (JSON)
-SADECE aşağıdaki JSON formatında yanıt ver. Başka hiçbir şey yazma.
-
-Eğer [INTERACTION] ise:
-{
-  "type": "INTERACTION",
-  "description": "Kullanıcı kameraya doğru bir kitap uzattı.",
-  "reason": "Kullanıcı doğrudan etkileşime girmeye çalışıyor."
-}
-
-Eğer [MEMORY] ise:
-{
-  "type": "MEMORY",
-  "description": "Kullanıcı telefonu eline aldı ve ekrana bakıyor.",
-  "reason": "Doğal bir hareket, bölünmeye değmez."
-}
-
-Eğer [NONE] ise:
-{
-  "type": "NONE"
-}
-"""
 
 
 async def analyze_change(current_frame_payload: dict) -> dict:
@@ -162,18 +118,18 @@ async def find_element_on_screen(element_name: str, image_payload: dict) -> dict
         current_mime = image_payload.get('mime_type', 'image/jpeg')
         encoded_image = base64.b64encode(current_data).decode('utf-8')
         
-        prompt = f"""Ekranda '{element_name}' öğesini bul.
-        
-Koordinatlarını [ymin, xmin, ymax, xmax] formatında (0-1000 aralığında) ver.
-SADECE JSON döndür:
-{{
-  "found": true,
-  "coordinates": [ymin, xmin, ymax, xmax],
-  "center_x": int (0-1000),
-  "center_y": int (0-1000),
-  "explanation": "..."
-}}
-Eğer yoksa "found": false döndür."""
+        # Load prompt from file
+        try:
+            base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__))) # core -> root
+            prompt_path = os.path.join(base_dir, "AtomBase", "prompts", "computer_use.txt")
+            with open(prompt_path, "r", encoding="utf-8") as f:
+                prompt_template = f.read()
+            prompt = prompt_template.format(element_name=element_name)
+        except Exception as e:
+            # Fallback
+            prompt = f"Ekranda '{element_name}' öğesini bul. Koordinatları ver."
+
+
 
         response = await asyncio.to_thread(
             vision_client.models.generate_content,

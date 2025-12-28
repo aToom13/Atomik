@@ -1,6 +1,8 @@
 {
   "topics": [
-    "oyun geliştirme"
+    "oyun geliştirme",
+    "programlama",
+    "Python"
   ],
   "prefers_short_responses": true,
   "prefers_long_responses": true

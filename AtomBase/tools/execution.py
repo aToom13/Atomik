@@ -88,6 +88,9 @@ def execute_command_direct(command: str) -> str:
             # Open log file for stderr
             stderr_log = open(log_file, 'w')
             
+            # Use user's default display (NOT virtual display :99)
+            # Virtual display is only used via open_app_in_workspace explicitly
+            
             # Run GUI apps in background (non-blocking) with stderr logging
             process = subprocess.Popen(
                 command,

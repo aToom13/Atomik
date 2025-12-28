@@ -72,6 +72,27 @@ def visit_webpage(url: str) -> str:
         
         soup = BeautifulSoup(response.text, "html.parser")
         
+        # Check for JavaScript-only pages
+        page_text = soup.get_text()
+        js_indicators = [
+            "enable javascript",
+            "javascript is required", 
+            "you need to enable javascript",
+            "please enable javascript",
+            "javascript must be enabled",
+            "this app requires javascript"
+        ]
+        
+        if any(indicator in page_text.lower() for indicator in js_indicators):
+            # Extract domain for web_search suggestion
+            from urllib.parse import urlparse
+            domain = urlparse(url).netloc.replace("www.", "")
+            return (
+                f"⚠️ Bu sayfa JavaScript gerektiriyor ve statik olarak okunamıyor.\n"
+                f"💡 Öneri: `web_search` ile '{domain}' hakkında arama yapabilirsin.\n"
+                f"🌐 Site: {url}"
+            )
+        
         # Gereksiz tagleri temizle
         for tag in soup(["script", "style", "nav", "footer", "iframe", "noscript"]):
             tag.decompose()
@@ -88,6 +109,16 @@ def visit_webpage(url: str) -> str:
             
         text = main_content.get_text(separator='\n', strip=True)
         cleaned_text = _clean_text(text)
+        
+        # Check if content is too short (likely JS-rendered)
+        if len(cleaned_text) < 100:
+            from urllib.parse import urlparse
+            domain = urlparse(url).netloc.replace("www.", "")
+            return (
+                f"⚠️ Sayfa içeriği çok kısa - muhtemelen JavaScript ile yükleniyor.\n"
+                f"💡 Öneri: `web_search('{domain} + konu')` ile arama yap.\n"
+                f"📄 Bulunan metin: {cleaned_text[:200]}"
+            )
         
         return f"📄 {url}\n\n{cleaned_text}"
         

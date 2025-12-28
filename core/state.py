@@ -6,8 +6,8 @@ Global State Variables
 pending_camera_frame = None
 exit_requested = False
 
-# Video Mode (camera or screen)
-video_mode = "camera"  # "camera" or "screen"
+# Video Mode (camera, screen, or workspace)
+video_mode = "camera"  # "camera" or "screen" or "workspace" (sanal ekran :99)
 
 # VAD State
 latest_image_payload = None

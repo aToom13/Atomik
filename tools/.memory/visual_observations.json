@@ -1,0 +1,50 @@
+[
+  {
+    "timestamp": "2025-12-28T00:59:06.259566",
+    "date": "2025-12-28 00:59",
+    "notes": "Gece yarısı, yorgun görünüyor",
+    "attributes": {}
+  },
+  {
+    "timestamp": "2025-12-28T01:00:51.268328",
+    "date": "2025-12-28 01:00",
+    "notes": "Gece geç saat, yorgun ve uykusuz görünüyor, dinlenmeye çalıştıktan sonra tekrar doğruldu.",
+    "attributes": {}
+  },
+  {
+    "timestamp": "2025-12-28T01:03:03.082224",
+    "date": "2025-12-28 01:03",
+    "notes": "Karanlık ortamda, yorgun ve uykulu görünüyor, ancak hala teknik konularla ilgili.",
+    "attributes": {}
+  },
+  {
+    "timestamp": "2025-12-28T01:19:25.065676",
+    "date": "2025-12-28 01:19",
+    "notes": "Kameraya beyaz bir kağıt veya nesne gösteriyor",
+    "attributes": {}
+  },
+  {
+    "timestamp": "2025-12-28T01:24:17.144504",
+    "date": "2025-12-28 01:24",
+    "notes": "Kamera açısı değişti, sadece çene ve boyun bölgesi görünüyor. Gözler kapalı. Muhtemelen uyuyakaldı veya dinleniyor.",
+    "attributes": {}
+  },
+  {
+    "timestamp": "2025-12-28T13:44:25.777347",
+    "date": "2025-12-28 13:44",
+    "notes": "Kullanıcı kadrajdan çıktı, kamera tavanı çekiyor. Muhtemelen uzandı veya masadan kalktı.",
+    "attributes": {}
+  },
+  {
+    "timestamp": "2025-12-28T14:54:08.946354",
+    "date": "2025-12-28 14:54",
+    "notes": "Hala yorgun görünüyor, yüzünde güneş ışığı var, elini çenesine dayamış, odaklanmış ama biraz da sabırsız",
+    "attributes": {}
+  },
+  {
+    "timestamp": "2025-12-28T15:01:29.672699",
+    "date": "2025-12-28 15:01",
+    "notes": "Başını aşağı eğdi, dikleştirdi, kamera açısını değiştirdi, odaklanmaya çalışıyor. Stresli görünüyor.",
+    "attributes": {}
+  }
+]

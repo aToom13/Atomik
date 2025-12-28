@@ -179,12 +179,17 @@ TOOL_DECLARATIONS = [
     # Screen Sharing Tools
     {
         "name": "share_screen",
-        "description": "Kullanıcının ekranını görmeye başla.",
+        "description": "Kullanıcının GERÇEK ekranını görmeye başla. NOT: Virtual workspace ÇALIŞMAYA DEVAM EDER, stop_virtual_workspace ÇAĞIRMA! Sadece görüntü kaynağını değiştirir.",
         "parameters": {"type": "OBJECT", "properties": {}}
     },
     {
         "name": "stop_screen_share",
-        "description": "Ekran paylaşımını durdur ve kameraya geri dön.",
+        "description": "Ekran paylaşımını durdur ve kameraya geri dön. NOT: Virtual workspace ÇALIŞMAYA DEVAM EDER!",
+        "parameters": {"type": "OBJECT", "properties": {}}
+    },
+    {
+        "name": "share_workspace_screen",
+        "description": "SANAL EKRANI (Virtual Workspace) görmeye başla. Sanal ekrandaki uygulamaları görmek için bu aracı kullan. Tıklama koordinatlarını doğru görmek için şart!",
         "parameters": {"type": "OBJECT", "properties": {}}
     },
     # Proactive Tools
@@ -499,6 +504,247 @@ TOOL_DECLARATIONS = [
                 }
             }
         }
+    },
+    # ===== VIRTUAL WORKSPACE TOOLS =====
+    {
+        "name": "start_virtual_workspace",
+        "description": "Atomik'in bağımsız çalışma alanını başlatır. Kullanıcının ekranına dokunmadan arka planda çalışır. 2. masaüstünden izlenebilir.",
+        "parameters": {"type": "OBJECT", "properties": {}}
+    },
+    {
+        "name": "stop_virtual_workspace",
+        "description": "Virtual workspace'i TAMAMEN KAPATIR. DİKKAT: Bunu sadece kullanıcı istediğinde veya görevi bitirdiğinde çağır. Ekran görüntüsü değiştirmek için KULLANMA, bunun yerine share_screen veya share_workspace_screen kullan!",
+        "parameters": {"type": "OBJECT", "properties": {}}
+    },
+    {
+        "name": "capture_active_window",
+        "description": "Kullanıcının önündeki aktif pencereyi yakala ve 2. masaüstüne taşı. Artık o pencereyi kontrol edebilirsin, kullanıcının mouse/klavyesi kilitlenmez.",
+        "parameters": {"type": "OBJECT", "properties": {}}
+    },
+    {
+        "name": "release_captured_window",
+        "description": "Yakalanan pencereyi serbest bırak ve kullanıcının önüne geri getir.",
+        "parameters": {"type": "OBJECT", "properties": {}}
+    },
+    {
+        "name": "open_app_in_workspace",
+        "description": "SANAL EKRAN'da (2. masaüstü) uygulama açar. Kullanıcının ekranına dokunmaz. Uygulamayı açtıktan sonra click_in_workspace, type_in_workspace, send_key_in_workspace ile kontrol et. computer_control KULLANMA!",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "app": {"type": "STRING", "description": "Uygulama adı: spotify, youtube, gedit, firefox, libreoffice vb."},
+                "maximize": {"type": "BOOLEAN", "description": "Pencereyi tam ekran aç (varsayılan: true)"}
+            },
+            "required": ["app"]
+        }
+    },
+    {
+        "name": "type_in_workspace",
+        "description": "Yakalanan veya sanal ekrandaki pencereye metin yazar.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "text": {"type": "STRING", "description": "Yazılacak metin"}
+            },
+            "required": ["text"]
+        }
+    },
+    {
+        "name": "send_key_in_workspace",
+        "description": "Yakalanan veya sanal ekrandaki pencereye klavye tuşu gönderir. Örnek: ctrl+s, ctrl+b, Return, F11",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "key": {"type": "STRING", "description": "Gönderilecek tuş kombinasyonu"}
+            },
+            "required": ["key"]
+        }
+    },
+    {
+        "name": "click_in_workspace",
+        "description": "SANAL EKRAN'da (Virtual Workspace) tıklama yapar. open_app_in_workspace ile açılan uygulamalarda bu aracı kullan, computer_control DEĞİL. inspect_web_page ile bulunan koordinatlara tıklamak için bu aracı kullan.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "x": {"type": "INTEGER", "description": "X koordinatı (inspect_web_page'den gelen)"},
+                "y": {"type": "INTEGER", "description": "Y koordinatı (inspect_web_page'den gelen)"}
+            },
+            "required": ["x", "y"]
+        }
+    },
+    {
+        "name": "focus_window_in_workspace",
+        "description": "Sanal ekrandaki belirli bir pencereye fokus verir. Birden fazla uygulama açıksa, yazmadan önce doğru pencereyi fokusla. Örnek: 'libreoffice', 'firefox', 'gedit'",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "window_name": {"type": "STRING", "description": "Fokuslanacak pencere adı"}
+            },
+            "required": ["window_name"]
+        }
+    },
+    {
+        "name": "view_captured_window",
+        "description": "Yakalanan pencerenin anlık ekran görüntüsünü al ve path'ini dön. 'Görmeden yazma' kuralı gereği capture_active_window sonrası kontrol için zorunlu.",
+        "parameters": {"type": "OBJECT", "properties": {}}
+    },
+    # ===== CALCODER PRO TOOLS =====
+    {
+        "name": "write_code_advanced",
+        "description": "Gelişmiş kod yazma. Self-healing özelliği ile hataları otomatik düzeltir. Karmaşık projeleri çoklu dosya olarak üretir.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "task": {"type": "STRING", "description": "Kod görevi (örn: 'Snake oyunu yaz', 'REST API oluştur')"},
+                "complexity": {"type": "STRING", "description": "simple/medium/complex/auto (varsayılan: auto)"},
+                "context": {"type": "STRING", "description": "Ek bağlam bilgisi (opsiyonel)"}
+            },
+            "required": ["task"]
+        }
+    },
+    {
+        "name": "fix_code_file",
+        "description": "Hatalı kodu otomatik düzelt. Self-healing ile 3 deneme yapar.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "filename": {"type": "STRING", "description": "Düzeltilecek dosya adı"},
+                "error_message": {"type": "STRING", "description": "Hata mesajı"}
+            },
+            "required": ["filename", "error_message"]
+        }
+    },
+    {
+        "name": "run_code_tests",
+        "description": "Kodu syntax ve çalışma testi yap.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "filename": {"type": "STRING", "description": "Test edilecek dosya adı"}
+            },
+            "required": ["filename"]
+        }
+    },
+    # ===== UNIFIED VISION TOOL =====
+    {
+        "name": "see_screen",
+        "description": """Birleşik ekran görme aracı. Tek araçta: görme + okuma + zoom + element bulma.
+
+KULLANIM:
+- Genel bakış: see_screen() veya see_screen(task="anla")
+- Metin/URL okuma: see_screen(task="oku") → URL'leri karakter karakter doğru okur
+- Element bulma: see_screen(find="play butonu") → Koordinat döner
+- Bölgeye zoom: see_screen(task="oku", region="alt") → Sadece alt kısma odaklan
+
+BÖLGELER: üst, orta, alt, sol, sağ, merkez, üst-sol, üst-sağ, alt-sol, alt-sağ, navbar, sidebar-sol, sidebar-sağ, içerik
+
+ÖNEMLİ: Link/URL okurken mutlaka task="oku" kullan, daha hassas okur!""",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "task": {
+                    "type": "STRING",
+                    "description": "Görev: 'oku' (metin/URL okuma - HASSAS), 'anla' (genel analiz), veya boş (genel bakış)"
+                },
+                "region": {
+                    "type": "STRING",
+                    "description": "Zoom bölgesi: üst, alt, sol, sağ, merkez, üst-sol, alt-sağ, navbar, içerik vb."
+                },
+                "find": {
+                    "type": "STRING",
+                    "description": "Bulunacak UI elementi (örn: 'gönder butonu', 'arama kutusu')"
+                }
+            }
+        }
+    },
+
+    # ===== CONTEXTUAL LEARNING TOOLS =====
+    {
+        "name": "learn_from_feedback",
+        "description": "Kullanıcı düzeltmesinden öğren. Hata yaptığında doğru yolu kaydet.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "context": {"type": "STRING", "description": "Öğrenme bağlamı (örn: 'spotify_workflow', 'python_code_style')"},
+                "correct_steps": {"type": "ARRAY", "items": {"type": "STRING"}, "description": "Doğru adımlar listesi"},
+                "explanation": {"type": "STRING", "description": "Kullanıcı açıklaması (opsiyonel)"}
+            },
+            "required": ["context", "correct_steps"]
+        }
+    },
+    {
+        "name": "what_did_i_learn",
+        "description": "Öğrenilmiş kalıpları listele. Belirli bir konu için veya tümü.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "topic": {"type": "STRING", "description": "Filtre (opsiyonel, örn: 'spotify')"}
+            }
+        }
+    },
+    {
+        "name": "forget_learning",
+        "description": "Yanlış öğrenilmiş kalıbı unut.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "context": {"type": "STRING", "description": "Unutulacak context adı"}
+            },
+            "required": ["context"]
+        }
+    },
+    # ===== TASK MANAGER TOOLS =====
+    {
+        "name": "add_task",
+        "description": "Yeni görev ekle. Hatırlatıcı sistemi için.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "action": {"type": "STRING", "description": "Görev açıklaması (örn: 'Ela'ya hediye al')"},
+                "deadline": {"type": "STRING", "description": "Tarih (YYYY-MM-DD formatında, opsiyonel)"},
+                "priority": {"type": "STRING", "description": "low/medium/high (varsayılan: medium)"},
+                "category": {"type": "STRING", "description": "work/personal/shopping/health/social (varsayılan: personal)"}
+            },
+            "required": ["action"]
+        }
+    },
+    {
+        "name": "complete_task",
+        "description": "Görevi tamamlandı olarak işaretle.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "task_id": {"type": "STRING", "description": "Görev ID'si"}
+            },
+            "required": ["task_id"]
+        }
+    },
+    {
+        "name": "list_tasks",
+        "description": "Görevleri listele. Filtre: all/active/pending/completed/today/overdue",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "filter_type": {"type": "STRING", "description": "Filtre tipi (varsayılan: all)"}
+            }
+        }
+    },
+    {
+        "name": "get_task_summary",
+        "description": "Günlük görev özeti al. Bugünkü ve gecikmiş görevler.",
+        "parameters": {"type": "OBJECT", "properties": {}}
+    },
+    {
+        "name": "process_task_from_text",
+        "description": "Doğal dilden görev çıkar ve ekle. 'Yarın Ela'ya hediye almam lazım' gibi.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "text": {"type": "STRING", "description": "Görev içeren metin"}
+            },
+            "required": ["text"]
+        }
     }
+
 ]
 

@@ -7,7 +7,9 @@ from dotenv import load_dotenv
 import pyaudio
 
 # Load environment variables
-load_dotenv()
+# Load environment variables
+_project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+load_dotenv(os.path.join(_project_root, ".env"))
 
 # API Key
 API_KEY = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")

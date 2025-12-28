@@ -60,7 +60,26 @@ def delegate_coding(prompt: str, context: str = "") -> dict:
         # Use flash model for code generation (fast and capable)
         model = genai.GenerativeModel("gemini-3-flash-preview")
         
-        full_prompt = f"""Generate Python code for this task. Return ONLY valid JSON with no markdown:
+        # Load prompt from file
+        try:
+             # Construct path to prompts/calcoder.txt relative to this file
+             # coding.py is in tools/dev/, so we go up two levels to root, then into AtomBase/prompts
+             # But project root is safer to rely on config or helper if available.
+             # Let's use absolute path relative to project assumption: /home/atom13/Projeler/Atomik/AtomBase/prompts/calcoder.txt
+             # Better: Use __file__ relative path
+             
+             base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))) # tools/dev -> tools -> root
+             prompt_path = os.path.join(base_dir, "AtomBase", "prompts", "calcoder", "calcoder.txt")
+             
+             with open(prompt_path, "r", encoding="utf-8") as f:
+                 prompt_template = f.read()
+                 
+             full_prompt = prompt_template.format(prompt=prompt, context=context)
+             
+        except Exception as file_error:
+            logger.warning(f"Could not load calcoder prompt from file, using fallback: {file_error}")
+            # Fallback (Original hardcoded prompt)
+            full_prompt = f"""Generate Python code for this task. Return ONLY valid JSON with no markdown:
 {{"filename": "appropriate_name.py", "code": "...the complete code...", "explanation": "Brief explanation"}}
 
 Task: {prompt}

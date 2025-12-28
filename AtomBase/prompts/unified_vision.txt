@@ -1,0 +1,108 @@
+# UNIFIED VISION - Birleşik Ekran Görme Promptları
+# =================================================
+# Kullanım: see_screen(task="oku/anla", region="...", find="...")
+
+# ============================================================================
+# GENEL ANALİZ
+# ============================================================================
+PROMPT_GENERAL = """Sen ekran analiz uzmanısın. Görüntüyü dikkatli analiz et.
+
+Bu ekranı analiz et ve şunları belirle:
+1. Hangi uygulama/sayfa açık
+2. Ekranda ne oluyor (aktivite)
+3. Önemli içerikler (mesajlar, bildirimler, hatalar)
+4. Dikkat çeken elementler
+
+JSON formatında döndür:
+{
+    "application": "Uygulama adı",
+    "activity": "Ne yapılıyor",
+    "content_summary": "Ana içerik özeti",
+    "important_items": ["önemli şey 1", "önemli şey 2"],
+    "errors_or_warnings": ["varsa hatalar"],
+    "notes": "Ek notlar"
+}
+"""
+
+# ============================================================================
+# METİN/URL OKUMA (OCR)
+# ============================================================================
+PROMPT_READ = """Sen ekran analiz uzmanısın. Görüntüyü dikkatli analiz et.
+
+Bu ekrandaki TÜM METİNLERİ oku. 
+
+⚠️ KRİTİK KURALLAR - URL OKUMA:
+
+1. **YouTube URL Formatı:**
+   - Pattern: `youtube.com/watch?v=XXXXXXXXXXX` (11 karakter video ID)
+   - Video ID karakterleri: A-Z, a-z, 0-9, - (tire), _ (alt çizgi)
+   - Timestamp parametresi: `&t=123s` (sayı + s harfi)
+   - ÖRNEK: `watch?v=4Iv-VCLH_MI&t=383s`
+
+2. **Benzer Karakterlere DİKKAT:**
+   - `I` (büyük i) vs `l` (küçük L) vs `1` (bir) → YouTube ID'de genelde büyük I kullanılır
+   - `_` (alt çizgi) vs `-` (tire) → ikisi de geçerli, ATLA!
+   - `0` (sıfır) vs `O` (büyük o)
+   - `&` (ampersand) parametreleri ayırır → `&t=` timestamp demek
+
+3. **URL Bütünlüğü:**
+   - URL'yi TAMAMEN oku, kesme!
+   - Boşluk OLMAZ URL'de
+   - Parametre ayracı `&` işareti
+
+4. Büyük/küçük harf ayrımını MUTLAKA koru
+
+JSON formatında döndür:
+{
+    "all_text": "Tüm metin içeriği (satır satır)",
+    "urls": ["bulunan tüm URL'ler - TAM VE DOĞRU"],
+    "important_text": ["önemli/vurgulu metinler"],
+    "language": "tr/en/mixed"
+}
+"""
+
+# ============================================================================
+# UI ELEMENT BULMA
+# ============================================================================
+PROMPT_FIND = """Sen UI element tespit uzmanısın.
+
+Ekranda şunu bul: "{element}"
+
+Koordinatlar 0-1000 aralığında normalize edilmiş olmalı.
+Format: [ymin, xmin, ymax, xmax]
+
+JSON formatında döndür:
+{
+    "found": true/false,
+    "element_name": "aranan element",
+    "coordinates": [ymin, xmin, ymax, xmax],
+    "center_x": 500,
+    "center_y": 500,
+    "description": "Elementin nerede ve nasıl göründüğü"
+}
+"""
+
+# ============================================================================
+# BÖLGE TANIMLARI
+# ============================================================================
+REGIONS = {
+    # Ana bölgeler
+    "üst": (0, 0, 1, 0.33),
+    "orta": (0, 0.33, 1, 0.66),
+    "alt": (0, 0.66, 1, 1),
+    "sol": (0, 0, 0.5, 1),
+    "sağ": (0.5, 0, 1, 1),
+    "merkez": (0.25, 0.25, 0.75, 0.75),
+    
+    # Köşeler
+    "üst-sol": (0, 0, 0.5, 0.33),
+    "üst-sağ": (0.5, 0, 1, 0.33),
+    "alt-sol": (0, 0.66, 0.5, 1),
+    "alt-sağ": (0.5, 0.66, 1, 1),
+    
+    # Detaylı bölgeler
+    "navbar": (0, 0, 1, 0.1),
+    "sidebar-sol": (0, 0, 0.2, 1),
+    "sidebar-sağ": (0.8, 0, 1, 1),
+    "içerik": (0.2, 0.1, 0.8, 0.9),
+}

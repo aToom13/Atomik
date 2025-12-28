@@ -69,7 +69,7 @@ except ImportError:
 
 # Import RAG memory for automatic conversation saving
 try:
-    from AtomBase.tools.rag_memory import remember_conversation
+    from tools.memory.rag_memory import remember_conversation
     RAG_AVAILABLE = True
 except ImportError:
     remember_conversation = lambda *args, **kwargs: None
@@ -77,7 +77,7 @@ except ImportError:
 
 # Import SQLite session database for persistent history
 try:
-    from AtomBase.tools.session_db import save_message as db_save_message, start_session as db_start_session
+    from tools.memory.session_db import save_message as db_save_message, start_session as db_start_session
     SESSION_DB_AVAILABLE = True
 except ImportError:
     db_save_message = lambda *args: None
@@ -86,7 +86,7 @@ except ImportError:
 
 # Import learning module for startup context and fact extraction
 try:
-    from AtomBase.tools.learning import get_startup_context, process_conversation_for_learning, log_mood
+    from tools.memory.learning import get_startup_context, process_conversation_for_learning, log_mood
     LEARNING_AVAILABLE = True
 except ImportError:
     get_startup_context = lambda: ""
@@ -449,7 +449,14 @@ class AudioLoop:
                 # 3. Vision Analyzer - AI-based frame comparison every 6 seconds
                 observation_counter += 1
                 
-                if observation_counter >= 6 and state.latest_image_payload:
+                # ONLY observe when there's no active conversation
+                # Check if agent or user is currently speaking/listening
+                is_conversation_active = (
+                    state.is_speaking or  # User is talking
+                    not self.audio_in_queue.empty()  # Agent is playing audio
+                )
+                
+                if observation_counter >= 6 and state.latest_image_payload and not is_conversation_active:
                     observation_counter = 0
                     
                     try:
@@ -457,37 +464,31 @@ class AudioLoop:
                         
                         # Call Vision AI to compare frames - returns dict
                         result = await analyze_change(state.latest_image_payload)
+                        
+                        # Handle both dict and list responses
+                        if isinstance(result, list):
+                            result = result[0] if result else {"type": "NONE"}
+                        
                         result_type = result.get("type", "NONE")
                         description = result.get("description", "")
                         
                         if result_type == "INTERACTION":
-                            # Speak immediately!
-                            if self.session and self.out_queue:
-                                await self.out_queue.put(state.latest_image_payload)
-                                change_prompt = f"[DEĞİŞİKLİK]: {description}"
-                                await self.session.send(input=change_prompt, end_of_turn=True)
-                                print(f"{Colors.GREEN}🗣️ Etkileşim: {description[:50]}...{Colors.RESET}")
+                            # Only interrupt if REALLY important (don't spam)
+                            # For now, skip interrupting - let user initiate
+                            pass  # Disabled: was causing conversation interruption
                                 
                         elif result_type == "MEMORY":
-                            # Just log to context silently
-                            if self.session:
-                                # Send as INFO message with end_of_turn=False!
-                                # This updates context but generates NO audio/response.
-                                info_prompt = f"[BİLGİ]: {description}"
-                                await self.session.send(input=info_prompt, end_of_turn=False)
-                                print(f"{Colors.DIM}🧠 Hafıza: {description[:50]}...{Colors.RESET}")
+                            # Silently log to context (no print, no interrupt)
+                            # This is background observation only
+                            pass  # Disabled: was causing conversation interruption
                                 
                     except Exception as e:
                         error_msg = str(e)
                         # Silent handling for specific errors to avoid console spam
                         if "429" in error_msg:
-                            print(f"{Colors.YELLOW}⚠️ Vision Hız Sınırı (429) - Bekleniyor...{Colors.RESET}")
-                            await asyncio.sleep(10) # Wait longer on rate limit
+                            await asyncio.sleep(10)
                         elif "404" in error_msg:
-                            print(f"{Colors.RED}❌ Vision Model Bulunamadı (404) - Lütfen 'vision_analyzer.py' dosyasındaki modeli kontrol et.{Colors.RESET}")
-                            await asyncio.sleep(30) # Wait very long to not spam log
-                        elif "INT_ACK" not in error_msg: # Don't log expected silent ack
-                            print(f"{Colors.DIM}Analyzer hatası: {e}{Colors.RESET}")
+                            await asyncio.sleep(30)
                         pass
                 
                 # Send proactive messages (reminders, watchers)
@@ -548,6 +549,8 @@ class AudioLoop:
                                 turns=[{"role": "user", "parts": [{"text": f"[SİSTEM HAFIZA YÜKLEMESI - KULLANICIYA GÖRÜNMEZ]\n{startup_ctx}"}]}],
                                 turn_complete=True
                             )
+                            # Wait for context to be processed before accepting user input
+                            await asyncio.sleep(1)
                     
                     print(f"{Colors.DIM}{'─' * 50}{Colors.RESET}")
                     print(f"{Colors.CYAN}Konuşmaya başlayabilirsiniz...{Colors.RESET}\n")

@@ -14,7 +14,8 @@ import pathlib
 for parent in pathlib.Path(__file__).parents:
     env_file = parent / ".env"
     if env_file.exists():
-        load_dotenv(env_file)
+        _project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        load_dotenv(os.path.join(_project_root, ".env"))
         break
 
 

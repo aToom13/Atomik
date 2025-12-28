@@ -50,7 +50,10 @@ class AgentModelConfig:
         }
 
 # Load .env file
-load_dotenv()
+# Load environment variables from potential root locations
+_here = os.path.dirname(os.path.abspath(__file__))
+_root_env = os.path.abspath(os.path.join(_here, "..", "..", "..", ".env")) # Go up from AtomBase/core/providers/ to root
+load_dotenv(_root_env)
 
 logger = get_logger()
 
