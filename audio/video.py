@@ -5,6 +5,7 @@ import asyncio
 import io
 import os
 import sys
+from collections import deque
 
 # Ensure project root is in path
 _project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -14,6 +15,12 @@ if _project_root not in sys.path:
 from PIL import Image
 from core import state, FRAME_INTERVAL
 from core.colors import Colors
+
+# ============================================================================
+# PERFORMANCE: Global instances for reuse
+# ============================================================================
+_frame_buffer = deque(maxlen=3)  # Frame buffer for stability
+
 
 
 async def capture_frames():
@@ -101,7 +108,9 @@ async def capture_frames():
                         if img is None:
                             wayland_buffer = b""
 
-                    # 2. X11 Strategy: MSS
+                    # 2. X11 Strategy: MSS (Thread-safe implementation)
+                    # MSS maintains thread-local storage for X11 display, so we MUST 
+                    # create a new instance inside the thread that uses it.
                     else:
                         try:
                             def grab_screen_x11():
@@ -120,72 +129,73 @@ async def capture_frames():
                          await asyncio.sleep(0.01) # Short sleep to yield
                          continue
 
-                    # PiP: Overlay camera feed
-                    # Ensure camera is open
-                    if cap is None or not cap.isOpened():
-                        cap = await asyncio.to_thread(cv2.VideoCapture, 0)
+                    # PiP Removed: AI needs clean screen view
+                    # Camera is still available if needed via mode switch
 
-                    if cap and cap.isOpened():
-                        ret, cam_frame = await asyncio.to_thread(cap.read)
-                        if ret:
-                            # Convert camera frame to PIL
-                            cam_rgb = cv2.cvtColor(cam_frame, cv2.COLOR_BGR2RGB)
-                            cam_img = Image.fromarray(cam_rgb)
-                            
-                            # Resize to 20% of screen width
-                            pip_width = int(img.width * 0.2)
-                            aspect_ratio = cam_img.height / cam_img.width
-                            pip_height = int(pip_width * aspect_ratio)
-                            cam_img = cam_img.resize((pip_width, pip_height), Image.Resampling.LANCZOS)
-                            
-                            # Position: Bottom-Right with padding
-                            padding = 20
-                            x_pos = img.width - pip_width - padding
-                            y_pos = img.height - pip_height - padding
-                            
-                            # Paste camera onto screen
-                            img.paste(cam_img, (x_pos, y_pos))
                 
                 elif state.video_mode == "workspace":
                     # Virtual Workspace mode - capture DISPLAY=:99
+                    # First, check if :99 is actually available
+                    try:
+                        import subprocess
+                        check = subprocess.run(
+                            ['xdpyinfo', '-display', ':99'],
+                            capture_output=True,
+                            timeout=2
+                        )
+                        if check.returncode != 0:
+                            if not screen_announced:
+                                print(f"{Colors.YELLOW}🖥️ Sanal ekran (:99) henüz hazır değil. Bekleniyor...{Colors.RESET}")
+                                screen_announced = True
+                            await asyncio.sleep(1)
+                            continue
+                    except Exception:
+                        await asyncio.sleep(1)
+                        continue
+                    
                     try:
                         def grab_workspace_screen():
                             import subprocess
                             import tempfile
                             
-                            # Use scrot or import to capture from :99
-                            with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as f:
-                                temp_path = f.name
-                            
+                            # Use import (ImageMagick) with explicit DISPLAY - cleanest method
                             try:
-                                # Try using import (ImageMagick)
+                                with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as f:
+                                    temp_path = f.name
+                                
+                                # Run in isolated subprocess with clean environment
+                                env = os.environ.copy()
+                                env['DISPLAY'] = ':99'
+                                
                                 result = subprocess.run(
-                                    ['import', '-display', ':99', '-window', 'root', temp_path],
+                                    ['import', '-window', 'root', temp_path],
                                     capture_output=True,
-                                    timeout=5
+                                    timeout=5,
+                                    env=env  # Isolated environment
                                 )
-                                if result.returncode == 0:
+                                
+                                if result.returncode == 0 and os.path.exists(temp_path):
                                     img = Image.open(temp_path)
-                                    return img.copy()
-                            except Exception:
+                                    img_copy = img.copy()  # Copy to avoid file lock
+                                    try:
+                                        os.unlink(temp_path)
+                                    except:
+                                        pass
+                                    return img_copy
+                            except Exception as e:
                                 pass
-                            finally:
-                                try:
-                                    os.unlink(temp_path)
-                                except:
-                                    pass
                             
                             return None
                         
-                        if not screen_announced:
+                        if not screen_announced or screen_announced == "waiting":
                             print(f"{Colors.GREEN}🖥️ Sanal ekran paylaşımı başladı (DISPLAY=:99){Colors.RESET}")
                             screen_announced = True
                         
                         img = await asyncio.to_thread(grab_workspace_screen)
                         
                         if img is None:
-                            print(f"{Colors.YELLOW}🖥️ Sanal ekran yakalanamadı{Colors.RESET}")
-                            await asyncio.sleep(FRAME_INTERVAL)
+                            # Don't spam logs, just wait and try again
+                            await asyncio.sleep(0.5)
                             continue
                             
                     except Exception as e:
@@ -198,14 +208,18 @@ async def capture_frames():
                     continue
                 
                 # Convert to JPEG
-                img.thumbnail([1536, 1536])
+                img.thumbnail([1024, 1024])
                 buffer = io.BytesIO()
-                img.save(buffer, format="JPEG", quality=90)
+                img.save(buffer, format="JPEG", quality=70)
                 buffer.seek(0)
+                
+                # Add to frame buffer for stability
+                frame_data = buffer.getvalue()
+                _frame_buffer.append(frame_data)
                 
                 state.latest_image_payload = {
                     "mime_type": "image/jpeg",
-                    "data": buffer.getvalue()
+                    "data": frame_data
                 }
                 
                 if state.video_mode != "screen":

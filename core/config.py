@@ -28,6 +28,12 @@ CHUNK_SIZE = 1024
 # Model
 MODEL = "models/gemini-2.5-flash-native-audio-preview-12-2025"
 
+# Fallback Models (in case of 1008/404 errors)
+FALLBACK_MODELS = [
+    "models/gemini-live-2.5-flash-native-audio-preview-09-2025",
+    "models/gemini-2.0-flash-exp"
+]
+    
 # VAD Settings
 VAD_THRESHOLD = 600
 SILENCE_DURATION = 0.5

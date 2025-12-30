@@ -104,6 +104,7 @@ class AudioLoop:
         self._last_output_transcription = ""
         self._silence_start_time = None
         self._skip_next_transcription = False  # Skip stale transcription after tool call
+        self._vad_chunk_counter = 0  # Performance: VAD every 3 chunks
         
         # Set global reference needed by tools
         state.active_loop = self
@@ -166,8 +167,10 @@ class AudioLoop:
                     clean_data = aec.process_microphone(data)
                     await self.out_queue.put({"data": clean_data, "mime_type": "audio/pcm"})
                 
-                # VAD Logic for Camera
-                if CAMERA_ENABLED and state.latest_image_payload:
+                # VAD Logic for Camera (Performance: check every 3 chunks)
+                self._vad_chunk_counter += 1
+                if CAMERA_ENABLED and state.latest_image_payload and self._vad_chunk_counter >= 3:
+                    self._vad_chunk_counter = 0  # Reset counter
                     count = len(data) // 2
                     if count > 0:
                         shorts = struct.unpack(f"<{count}h", data)
@@ -527,17 +530,20 @@ class AudioLoop:
         
         print(f"{Colors.YELLOW}Gemini Live API'ye bağlanılıyor...{Colors.RESET}")
         
+        self.model_to_use = MODEL
+        
         while True:
             try:
+                print(f"{Colors.DIM}Model: {self.model_to_use}{Colors.RESET}")
                 async with (
-                    client.aio.live.connect(model=MODEL, config=config) as session,
+                    client.aio.live.connect(model=self.model_to_use, config=config) as session,
                     asyncio.TaskGroup() as tg,
                 ):
                     self.session = session
                     self.audio_in_queue = asyncio.Queue()
                     self.out_queue = asyncio.Queue(maxsize=10)
                     
-                    print(f"{Colors.GREEN}✓ Bağlandı!{Colors.RESET}")
+                    print(f"{Colors.GREEN}✓ Bağlandı! ({self.model_to_use}){Colors.RESET}")
                     
                     # Load and inject startup context (memories, profile, mood)
                     if LEARNING_AVAILABLE:
@@ -593,17 +599,62 @@ class AudioLoop:
                 # Check if this is a session timeout/policy error (reconnectable)
                 # Handle Python 3.11+ ExceptionGroups from TaskGroup
                 should_reconnect = False
+                error_is_policy_violation = False
+                
                 errors_to_check = [e]
                 if hasattr(e, 'exceptions'):
                     errors_to_check.extend(e.exceptions)
                     
                 for err in errors_to_check:
                     err_str = str(err).lower()
-                    if any(x in err_str for x in ['1008', 'policy', 'timeout', 'closed', 'entity', 'auto-reconnect']):
+                    if "1008" in err_str or "policy" in err_str or "entity" in err_str or "404" in err_str:
+                         error_is_policy_violation = True
+                         should_reconnect = True
+                         break
+                    if any(x in err_str for x in ['timeout', 'closed', 'auto-reconnect']):
                         should_reconnect = True
                         break
                 
                 if should_reconnect:
+                    if error_is_policy_violation:
+                         # Try fallback logic
+                         print(f"{Colors.RED}⚠️ Model hatası/Politika ihlali algılandı: {self.model_to_use}{Colors.RESET}")
+                         
+                         # Import here to avoid circular dependency in top-level
+                         from core.config import FALLBACK_MODELS
+                         # We need access to the ORIGINAL MODEL constant from config, 
+                         # but we shadowed it with the import in the loop.
+                         # Let's import the specific module to get the constant cleanly
+                         import core.config
+                         default_model = core.config.MODEL
+                         
+                         current_model = self.model_to_use
+                         
+                         # Check if we can switch to a fallback
+                         next_model = None
+                         
+                         # Case 1: We are currently on the default model
+                         if current_model == default_model:
+                             if len(FALLBACK_MODELS) > 0:
+                                 next_model = FALLBACK_MODELS[0]
+                                 
+                         # Case 2: We are already on a fallback model
+                         elif current_model in FALLBACK_MODELS:
+                             idx = FALLBACK_MODELS.index(current_model)
+                             if idx + 1 < len(FALLBACK_MODELS):
+                                 next_model = FALLBACK_MODELS[idx + 1]
+                                 
+                         if next_model:
+                             print(f"{Colors.YELLOW}🔄 Fallback modeline geçiliyor: {next_model}{Colors.RESET}")
+                             self.model_to_use = next_model
+                         else:
+                             print(f"{Colors.RED}❌ Tüm fallback modelleri denendi, mevcut model çalışmıyor: {self.model_to_use}{Colors.RESET}")
+                             # Reset to default for next retry loop after a long pause, or just keep trying the last one?
+                             # Let's try the default one again after a long pause, maybe it was temporary.
+                             self.model_to_use = default_model
+                             print(f"{Colors.DIM}10 saniye sonra varsayılan model ile tekrar denenecek...{Colors.RESET}")
+                             await asyncio.sleep(10)
+                             
                     print(f"{Colors.CYAN}🔄 Otomatik yeniden bağlanılıyor...{Colors.RESET}")
                     await asyncio.sleep(2)  # Brief pause before reconnect
                     
