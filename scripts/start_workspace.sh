@@ -33,10 +33,13 @@ echo "🪟 Window manager başlatılıyor..."
 DISPLAY=$VIRTUAL_DISPLAY openbox &
 sleep 0.5
 
-# 🔊 Sistem sesini (Beep/Bell) kapat
+# 🔊 Sistem sesini (Beep/Bell) kapat - HEM SANAL HEM ANA EKRAN
 echo "🔇 Sistem 'ding' sesleri kapatılıyor..."
 DISPLAY=$VIRTUAL_DISPLAY xset b off 2>/dev/null
 DISPLAY=$VIRTUAL_DISPLAY xset b 0 0 0 2>/dev/null
+# Ana ekran için de kapat (Remmina üzerinden gelen sesler için)
+xset b off 2>/dev/null
+xset b 0 0 0 2>/dev/null
 
 
 # 2. VNC sunucusunu başlat

@@ -43,3 +43,21 @@ def get_formatted_rules() -> str:
     for rule in rules:
         formatted += f"- {rule}\n"
     return formatted
+
+def get_vision_rules() -> list:
+    """Load vision rules (alias for load_feedback_rules)."""
+    return load_feedback_rules()
+
+def remove_vision_rule(rule: str) -> str:
+    """Remove a specific vision rule."""
+    rules = load_feedback_rules()
+    if rule in rules:
+        rules.remove(rule)
+        try:
+            with open(FEEDBACK_FILE, 'w', encoding='utf-8') as f:
+                json.dump({"vision_rules": rules}, f, indent=2, ensure_ascii=False)
+            return f"Kural silindi: '{rule}'"
+        except Exception as e:
+            return f"Kaydetme hatası: {e}"
+    return "Kural bulunamadı."
+

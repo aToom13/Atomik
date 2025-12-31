@@ -32,6 +32,8 @@ from core import state
 from tools import TOOL_DECLARATIONS, execute_tool, ATOMBASE_AVAILABLE, CAMERA_ENABLED, MEMORY_AVAILABLE
 from .video import capture_frames
 from .echo_cancel import aec
+from core.connection import get_connection_manager
+from audio.local_loop import LocalAudioLoop
 
 # PyAudio instance
 pya = pyaudio.PyAudio()
@@ -509,7 +511,19 @@ class AudioLoop:
                 print(f"{Colors.DIM}⏰ Hata: {e}{Colors.RESET}")
                 await asyncio.sleep(1)
     
+    
     async def run(self):
+        # 1. Check Connection Strategy
+        cm = get_connection_manager()
+        
+        # Initial Check
+        if not cm.is_online:
+            print(f"{Colors.RED}⚠️ İnternet Yok! Offline Mod Başlatılıyor...{Colors.RESET}")
+            local_loop = LocalAudioLoop()
+            await local_loop.run()
+            return
+
+        # If online, proceed with Gemini
         print_header()
         
         if ATOMBASE_AVAILABLE:

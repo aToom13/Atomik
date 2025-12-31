@@ -11,6 +11,8 @@ class Colors:
     BLUE = "\033[94m"
     DIM = "\033[2m"
     BOLD = "\033[1m"
+    RED = "\033[91m"
+
 
 def print_header():
     print(f"{Colors.CYAN}{Colors.BOLD}")

@@ -12,13 +12,16 @@ if _project_root not in sys.path:
 from core import state
 from core.colors import Colors
 
-# ===== NEW: Unified Memory & Error Handler =====
+# ===== NEW: Unified Memory & Tools =====
 try:
-    from tools.memory.unified_memory import get_memory_system
-    UNIFIED_MEMORY_AVAILABLE = True
-except ImportError:
-    get_memory_system = None
-    UNIFIED_MEMORY_AVAILABLE = False
+    from tools.memory.unified import manage_memory, query_memory
+    from tools.dev.quality import verify_code_quality
+    from tools.system.virtual_input import virtual_input
+    UNIFIED_TOOLS_AVAILABLE = True
+except ImportError as e:
+    print(f"{Colors.RED}Unified tools import error: {e}{Colors.RESET}")
+    manage_memory = None
+    UNIFIED_TOOLS_AVAILABLE = False
 
 try:
     from core.error_handler import get_error_handler, get_atomik_logger
@@ -48,25 +51,19 @@ try:
     from tools.system.location import get_current_location
     from AtomBase.tools.files import list_files, read_file, write_file, scan_workspace
     from AtomBase.tools.execution import run_terminal_command
+    from AtomBase.utils.logger import get_logger
     from tools.dev.coding import delegate_coding, save_generated_code
-    from AtomBase.tools.memory import (
-        save_context, get_context_info, get_memory_stats, clear_memory,
-        add_to_history, get_all_context, get_user_name
-    )
-    from tools.system.weather import get_weather
-    from tools.system.camera import capture_frame, get_camera_payload
-    from tools.memory.visual_memory import (
-        save_visual_observation, get_visual_history, 
-        compare_with_last, get_visual_context_for_prompt
-    )
+    # Memory and Visual Memory imports removed - replaced by unified tools
+
+    logger = get_logger()
     from tools.web.web import visit_webpage
     from tools.web.youtube import get_youtube_content
     ATOMBASE_AVAILABLE = True
     CODING_AVAILABLE = True
-    MEMORY_AVAILABLE = True
+    MEMORY_AVAILABLE = UNIFIED_TOOLS_AVAILABLE # Redirect to unified
     WEATHER_AVAILABLE = True
     CAMERA_AVAILABLE = True
-    VISUAL_MEMORY_AVAILABLE = True
+    VISUAL_MEMORY_AVAILABLE = UNIFIED_TOOLS_AVAILABLE # Redirect to unified
     CAMERA_ENABLED = CAMERA_AVAILABLE
 except ImportError as e:
     print(f"{Colors.YELLOW}AtomBase araçları yüklenemedi: {e}{Colors.RESET}")
@@ -144,55 +141,46 @@ ALTYAZI (TRANSKRIPT):
         elif name == "run_terminal_command":
             return run_terminal_command.invoke({"command": args["command"]})
         elif name == "run_neofetch":
-            return run_neofetch.invoke({})
-        elif name == "delegate_coding":
-            if CODING_AVAILABLE:
-                result = delegate_coding(args["prompt"], args.get("context", ""))
-                if result["success"]:
-                    import os as os_module  # Avoid shadowing from nested imports
-                    workspace = os_module.path.join(os_module.path.dirname(os_module.path.dirname(__file__)), "atom_workspace")
-                    os_module.makedirs(workspace, exist_ok=True)
-                    filepath = save_generated_code(result["filename"], result["code"], workspace)
-                    return f"✅ Kod oluşturuldu: {result['filename']}\n\n{result['explanation']}\n\nDosya: {filepath}"
-                else:
-                    return f"❌ Kod oluşturulamadı: {result.get('error', 'Bilinmeyen hata')}"
-            return "Coding module not available"
-        # Memory tools
-        elif name == "save_context":
-            if MEMORY_AVAILABLE:
-                return save_context(args["key"], args["value"])
-            return "Memory module not available"
-        elif name == "get_context_info":
-            if MEMORY_AVAILABLE:
-                return get_context_info(args["key"])
-            return "Memory module not available"
-        elif name == "get_memory_stats":
-            if MEMORY_AVAILABLE:
-                return get_memory_stats()
-            return "Memory module not available"
-        elif name == "clear_memory":
-            if MEMORY_AVAILABLE:
-                return clear_memory()
-            return "Memory module not available"
-        # Weather tool
-        elif name == "get_weather":
-            if WEATHER_AVAILABLE:
-                return get_weather(args["city"])
-            return "Weather module not available"
+             return "Deprecated. Use run_terminal_command('neofetch')."
+        
+        # ===== NEW: Unified Memory Tools =====
+        elif name == "manage_memory":
+            if UNIFIED_TOOLS_AVAILABLE:
+                return manage_memory(args["action"], args["category"], args.get("key"), args.get("content"))
+            return "Unified tools module not available"
+            
+        elif name == "query_memory":
+            if UNIFIED_TOOLS_AVAILABLE:
+                return query_memory(args["query"], args.get("filter_type", "all"), args.get("time_range"))
+            return "Unified tools module not available"
+            
+        elif name == "verify_code_quality":
+            if UNIFIED_TOOLS_AVAILABLE:
+                return verify_code_quality(args["filepath"], args.get("actions"))
+            return "Unified tools module not available"
+            
+        elif name == "virtual_input":
+             if UNIFIED_TOOLS_AVAILABLE:
+                return virtual_input(args["action"], args.get("x"), args.get("y"), args.get("text"), args.get("window"))
+             return "Unified tools module not available"
+             
+        # Redirect deprecated memory tools
+        elif name in ["save_context", "remember_this", "log_mood", "update_preference", "add_project", "save_visual_observation"]:
+            return "⚠️ Bu araç birleştirildi. Lütfen 'manage_memory' aracını kullanın."
+            
+        elif name in ["get_context_info", "recall_memory", "get_recent_memories", "get_visual_history", "search_chat_history"]:
+            return "⚠️ Bu araç birleştirildi. Lütfen 'query_memory' aracını kullanın."
+
         # Camera tool removed - frames are sent automatically via VAD in audio/video.py
         # Exit tool
         elif name == "exit_app":
             state.exit_requested = True
             return "Güle güle! Seninle sohbet etmek güzeldi. Tekrar görüşmek üzere!"
         # Visual Memory Tools
-        elif name == "save_visual_observation":
-            if VISUAL_MEMORY_AVAILABLE:
-                return save_visual_observation(args["notes"])
             return "Görsel hafıza kullanılamıyor"
-        elif name == "get_visual_history":
-            if VISUAL_MEMORY_AVAILABLE:
-                return get_visual_history()
-            return "Görsel hafıza kullanılamıyor"
+        # Redirect deprecated visual memory
+        # (Handled above in consolidated block)
+
         # Screen Sharing Tools
         elif name == "share_screen":
             state.video_mode = "screen"
@@ -201,6 +189,8 @@ ALTYAZI (TRANSKRIPT):
             state.video_mode = "camera"
             return "📷 Ekran paylaşımı durduruldu. Kameraya geri dönüyorum!"
         elif name == "share_workspace_screen":
+            # Clear stale frame from previous mode to prevent 1008 error
+            state.latest_image_payload = None
             state.video_mode = "workspace"
             return "🖥️ Sanal ekranı (Virtual Workspace) izlemeye başlıyorum. Artık 2. masaüstündeki uygulamaları görebiliyorum!"
         # Proactive Tools
@@ -229,71 +219,8 @@ ALTYAZI (TRANSKRIPT):
             return "Unknown action"
             
         elif name == "find_ui_element":
-            from core.vision_analyzer import find_element_on_screen
-            from core.state import latest_image_payload
-            from core.computer import get_screen_size
-            import asyncio
-            import threading
-            
-            # Use active state to get image
-            if not latest_image_payload:
-                return "Error: No screen image available."
-            
-            # Run async function in a new loop in a new thread to be safe
-            result_container = {}
-            
-            def run_in_thread(element, image, container):
-                try:
-                    new_loop = asyncio.new_event_loop()
-                    asyncio.set_event_loop(new_loop)
-                    res = new_loop.run_until_complete(find_element_on_screen(element, image))
-                    container['result'] = res
-                    new_loop.close()
-                except Exception as e:
-                    container['error'] = str(e)
+            return "⚠️ 'find_ui_element' birleştirildi. Lütfen 'see_screen(find=...)' kullanın."
 
-            # Start thread and join (blocking this tool execution, but that's what we want for sync return)
-            t = threading.Thread(target=run_in_thread, args=(args.get("element_name"), latest_image_payload, result_container))
-            t.start()
-            t.join(timeout=10) # 10s timeout
-            
-            if t.is_alive():
-                 return "Error: Timeout looking for element."
-                 
-            result = result_container.get("result", {})
-            error = result_container.get("error")
-            
-            if error:
-                return f"Error finding element: {error}"
-            
-            if result.get("found"):
-                # Convert 0-1000 to pixels
-                # Assume 1920x1080 for now if get_screen_size fails
-                WIDTH, HEIGHT = 1920, 1080
-                try:
-                    # Parse "1920x1080" from get_screen_size
-                    dims = get_screen_size().strip().split("x")
-                    if len(dims) == 2:
-                        WIDTH, HEIGHT = int(dims[0]), int(dims[1])
-                except:
-                    pass
-                    
-                # Gemini returns [ymin, xmin, ymax, xmax] 0-1000
-                coords = result.get("coordinates") #[ymin, xmin, ymax, xmax]
-                if coords:
-                    ymin, xmin, ymax, xmax = coords
-                    center_x_norm = (xmin + xmax) / 2
-                    center_y_norm = (ymin + ymax) / 2
-                else:
-                    center_x_norm = result.get("center_x", 500)
-                    center_y_norm = result.get("center_y", 500)
-                
-                pixel_x = int((center_x_norm / 1000) * WIDTH)
-                pixel_y = int((center_y_norm / 1000) * HEIGHT)
-                
-                return f"Found '{args.get('element_name')}' at [{pixel_x}, {pixel_y}]. Use computer_control(action='click', x={pixel_x}, y={pixel_y}) to click."
-            else:
-                return f"Could not find '{args.get('element_name')}' on screen."
         
         # Clipboard Tools
         elif name == "clipboard_read":
@@ -383,6 +310,7 @@ ALTYAZI (TRANSKRIPT):
                 try:
                     encoded_query = urllib.parse.quote_plus(query)
                     url = f"https://html.duckduckgo.com/html/?q={encoded_query}"
+                    headers = {"User-Agent": "Mozilla/5.0"}
                     response = requests.get(url, headers=headers, timeout=10)
                     soup = BeautifulSoup(response.text, 'html.parser')
                     
@@ -419,32 +347,10 @@ ALTYAZI (TRANSKRIPT):
                 return f"Bildirim gösterilemedi: {str(e)}"
         
         # ===== RAG MEMORY TOOLS =====
-        elif name == "remember_this":
-            try:
-                from tools.memory.rag_memory import remember_conversation
-                summary = args.get("summary", "")
-                topic = args.get("topic", "")
-                
-                metadata = {"topic": topic} if topic else None
-                return remember_conversation(summary, metadata)
-            except Exception as e:
-                return f"Hafıza hatası: {str(e)}"
-        
-        elif name == "recall_memory":
-            try:
-                from tools.memory.rag_memory import recall_memory
-                query = args.get("query", "")
-                return recall_memory(query)
-            except Exception as e:
-                return f"Hatırlama hatası: {str(e)}"
-        
-        elif name == "get_recent_memories":
-            try:
-                from tools.memory.rag_memory import get_recent_memories
-                days = args.get("days", 7)
-                return get_recent_memories(days)
-            except Exception as e:
-                return f"Anı getirme hatası: {str(e)}"
+        # ===== RAG MEMORY TOOLS (Deprecated) =====
+        elif name in ["remember_this", "recall_memory", "get_recent_memories"]:
+             return "⚠️ Bu araç birleştirildi. Lütfen 'manage_memory' veya 'query_memory' aracını kullanın."
+
         
         # ===== WEB SCRAPER TOOL =====
         elif name == "visit_webpage":
@@ -504,122 +410,17 @@ ALTYAZI (TRANSKRIPT):
                 return f"❌ Sayfa okuma hatası: {str(e)}"
         
         # ===== SESSION HISTORY TOOLS =====
-        elif name == "search_chat_history":
-            try:
-                from tools.memory.session_db import search_history
-                query = args.get("query", "")
-                return search_history(query)
-            except Exception as e:
-                return f"Geçmiş arama hatası: {str(e)}"
-        
-        elif name == "get_chat_stats":
-            try:
-                from tools.memory.session_db import get_stats
-                return get_stats()
-            except Exception as e:
-                return f"İstatistik hatası: {str(e)}"
+        # ===== SESSION HISTORY TOOLS (Deprecated) =====
+        elif name in ["search_chat_history", "get_chat_stats"]:
+            return "⚠️ Bu araç birleştirildi. Lütfen 'query_memory' aracını kullanın."
+
         
         # ===== CODE QUALITY TOOLS =====
-        elif name == "run_linter":
-            try:
-                import subprocess
-                file_path = args.get("file_path", "")
-                
-                if not file_path:
-                    return "❌ Dosya yolu belirtilmedi."
-                
-                import os as os_module  # Avoid shadowing from nested imports
-                if not os_module.path.exists(file_path):
-                    return f"❌ Dosya bulunamadı: {file_path}"
-                
-                # Try flake8 first, then pylint
-                try:
-                    result = subprocess.run(
-                        ["flake8", "--max-line-length=120", file_path],
-                        capture_output=True, text=True, timeout=30
-                    )
-                    output = result.stdout + result.stderr
-                except FileNotFoundError:
-                    result = subprocess.run(
-                        ["python3", "-m", "py_compile", file_path],
-                        capture_output=True, text=True, timeout=30
-                    )
-                    output = result.stderr if result.returncode != 0 else "✅ Sözdizimi hatası yok."
-                
-                if not output.strip():
-                    return f"✅ {os_module.path.basename(file_path)} - Lint hatası yok!"
-                
-                # Truncate if too long
-                if len(output) > 1000:
-                    output = output[:1000] + "\n...[kısaltıldı]"
-                
-                return f"🔍 Lint Sonuçları ({os_module.path.basename(file_path)}):\n{output}"
-                
-            except subprocess.TimeoutExpired:
-                return "❌ Lint zaman aşımına uğradı."
-            except Exception as e:
-                return f"❌ Lint hatası: {str(e)}"
-        
-        elif name == "format_code":
-            try:
-                import subprocess
-                file_path = args.get("file_path", "")
-                
-                if not file_path:
-                    return "❌ Dosya yolu belirtilmedi."
-                
-                if not os.path.exists(file_path):
-                    return f"❌ Dosya bulunamadı: {file_path}"
-                
-                # Use black for formatting
-                try:
-                    result = subprocess.run(
-                        ["black", "--line-length=100", file_path],
-                        capture_output=True, text=True, timeout=30
-                    )
-                    if result.returncode == 0:
-                        return f"✅ {os.path.basename(file_path)} formatlandı!"
-                    else:
-                        return f"⚠️ Format uyarısı: {result.stderr[:500]}"
-                except FileNotFoundError:
-                    return "❌ 'black' yüklü değil. `pip install black` çalıştır."
-                
-            except subprocess.TimeoutExpired:
-                return "❌ Format zaman aşımına uğradı."
-            except Exception as e:
-                return f"❌ Format hatası: {str(e)}"
-        
-        elif name == "run_tests":
-            try:
-                import subprocess
-                path = args.get("path", "")
-                
-                cmd = ["pytest", "-v", "--tb=short"]
-                if path:
-                    cmd.append(path)
-                
-                try:
-                    result = subprocess.run(
-                        cmd, capture_output=True, text=True, timeout=120,
-                        cwd=os.getcwd()
-                    )
-                    output = result.stdout + result.stderr
-                except FileNotFoundError:
-                    return "❌ 'pytest' yüklü değil. `pip install pytest` çalıştır."
-                
-                # Truncate if too long
-                if len(output) > 1500:
-                    output = output[:1500] + "\n...[kısaltıldı]"
-                
-                if result.returncode == 0:
-                    return f"✅ Testler başarılı!\n\n{output}"
-                else:
-                    return f"❌ Bazı testler başarısız:\n\n{output}"
-                
-            except subprocess.TimeoutExpired:
-                return "❌ Testler zaman aşımına uğradı (2 dk)."
-            except Exception as e:
-                return f"❌ Test hatası: {str(e)}"
+        # ===== CODE QUALITY TOOLS (Deprecated) =====
+        elif name in ["run_linter", "format_code", "run_tests"]:
+            return "⚠️ Bu araç birleştirildi. Lütfen 'verify_code_quality' aracını kullanın."
+
+
         
         # ===== LEARNING TOOLS =====
         elif name == "log_mood":
@@ -663,6 +464,15 @@ ALTYAZI (TRANSKRIPT):
             except Exception as e:
                 return f"❌ Uygulama açma hatası: {str(e)}"
         
+        elif name == "delegate_coding":
+            try:
+                from tools.dev.coding import delegate_coding
+                prompt = args.get("prompt", "")
+                context = args.get("context", "")
+                return delegate_coding(prompt, context)
+            except Exception as e:
+                return f"❌ Kodlama delegasyon hatası: {str(e)}"
+        
         elif name == "inspect_web_page":
             try:
                 from tools.web.web_inspector import inspect_web_page
@@ -670,6 +480,11 @@ ALTYAZI (TRANSKRIPT):
                 return inspect_web_page.invoke({"port": port})
             except Exception as e:
                 return f"❌ DOM analiz hatası: {str(e)}"
+
+        elif name == "get_weather":
+            # Basit mock implementation
+            city = args.get("city", "İstanbul")
+            return f"🌤️ {city}: 22°C, Açık (Mock Data)"
         
 
         
@@ -702,6 +517,15 @@ ALTYAZI (TRANSKRIPT):
             except Exception as e:
                 return f"❌ Pencere serbest bırakma hatası: {str(e)}"
         
+        elif name == "view_captured_window":
+            try:
+                from tools.system.workspace import view_captured_window
+                return view_captured_window()
+            except ImportError:
+                 return "❌ 'view_captured_window' henüz implemente edilmedi."
+            except Exception as e:
+                return f"❌ Pencere görüntüleme hatası: {str(e)}"
+        
         elif name == "open_app_in_workspace":
             try:
                 from tools.system.workspace import open_app_in_workspace
@@ -713,46 +537,10 @@ ALTYAZI (TRANSKRIPT):
             except Exception as e:
                 return f"❌ Uygulama açma hatası: {str(e)}"
         
-        elif name == "type_in_workspace":
-            try:
-                from tools.system.workspace import type_in_workspace
-                text = args.get("text", "")
-                if not text:
-                    return "❌ Metin gerekli."
-                return type_in_workspace(text)
-            except Exception as e:
-                return f"❌ Yazma hatası: {str(e)}"
-        
-        elif name == "send_key_in_workspace":
-            try:
-                from tools.system.workspace import send_key_in_workspace
-                key = args.get("key", "")
-                if not key:
-                    return "❌ Tuş gerekli."
-                return send_key_in_workspace(key)
-            except Exception as e:
-                return f"❌ Tuş gönderme hatası: {str(e)}"
-        
-        elif name == "click_in_workspace":
-            try:
-                from tools.system.workspace import click_in_workspace
-                x = args.get("x")
-                y = args.get("y")
-                if x is None or y is None:
-                    return "❌ X ve Y koordinatları gerekli."
-                return click_in_workspace(x, y)
-            except Exception as e:
-                return f"❌ Tıklama hatası: {str(e)}"
-        
-        elif name == "focus_window_in_workspace":
-            try:
-                from tools.system.workspace import focus_window_in_workspace
-                window_name = args.get("window_name", "")
-                if not window_name:
-                    return "❌ Pencere adı gerekli."
-                return focus_window_in_workspace(window_name)
-            except Exception as e:
-                return f"❌ Fokus hatası: {str(e)}"
+        # ===== VIRTUAL INPUT TOOLS (Deprecated) =====
+        elif name in ["type_in_workspace", "send_key_in_workspace", "click_in_workspace", "focus_window_in_workspace"]:
+            return "⚠️ Bu araç birleştirildi. Lütfen 'virtual_input' aracını kullanın."
+
         
         # ===== CALCODER PRO TOOLS =====
         elif name == "write_code_advanced":

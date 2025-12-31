@@ -12,6 +12,9 @@ import sys
 import json
 import base64
 import logging
+import time
+import hashlib
+import asyncio
 from typing import Dict, Optional, Tuple, List
 from io import BytesIO
 
@@ -22,16 +25,42 @@ if _project_root not in sys.path:
 
 logger = logging.getLogger("atomik.unified_vision")
 
-# Gemini client
-try:
-    from google import genai
-    from core.config import API_KEY
-    _client = genai.Client(api_key=API_KEY)
-    GENAI_AVAILABLE = True
-except ImportError:
-    _client = None
-    GENAI_AVAILABLE = False
-    logger.warning("Gemini API not available for UnifiedVision")
+from tools.llm.router import get_llm_router
+
+# Router üzerinden erişim
+_router = get_llm_router()
+
+# ============================================================================
+# PERFORMANCE: TTL Cache for Vision Results (5 seconds)
+# ============================================================================
+_vision_cache = {}
+_cache_ttl = 5  # seconds
+
+def _get_cache_key(image_data: bytes, prompt: str) -> str:
+    """Generate cache key from image hash and prompt"""
+    image_hash = hashlib.md5(image_data[:1024]).hexdigest()[:8]  # Fast hash of first 1KB
+    prompt_hash = hashlib.md5(prompt.encode()).hexdigest()[:8]
+    return f"{image_hash}:{prompt_hash}"
+
+def _get_cached(key: str):
+    """Get cached result if still valid"""
+    if key in _vision_cache:
+        entry = _vision_cache[key]
+        if time.time() - entry['time'] < _cache_ttl:
+            logger.debug(f"Cache hit: {key}")
+            return entry['result']
+        else:
+            del _vision_cache[key]  # Expired
+    return None
+
+def _set_cache(key: str, result):
+    """Store result in cache"""
+    _vision_cache[key] = {'result': result, 'time': time.time()}
+    # Cleanup old entries (keep max 20)
+    if len(_vision_cache) > 20:
+        oldest_key = min(_vision_cache.keys(), key=lambda k: _vision_cache[k]['time'])
+        del _vision_cache[oldest_key]
+
 
 
 # ============================================================================
@@ -57,7 +86,21 @@ REGIONS = {
     "sidebar-sol": (0, 0, 0.2, 1),
     "sidebar-sağ": (0.8, 0, 1, 1),
     "içerik": (0.2, 0.1, 0.8, 0.9),
+    
+    # English/Latin Aliases
+    "ust": (0, 0, 1, 0.33),
+    "sag": (0.5, 0, 1, 1),
+    "alt-sag": (0.5, 0.66, 1, 1),
+    "alt-sol": (0, 0.66, 0.5, 1),
+    "ust-sag": (0.5, 0, 1, 0.33),
+    "ust-sol": (0, 0, 0.5, 0.33),
+    "icerik": (0.2, 0.1, 0.8, 0.9),
+    "sol-alt": (0, 0.66, 0.5, 1),
+    "sag-alt": (0.5, 0.66, 1, 1),
+    "sol-ust": (0, 0, 0.5, 0.33),
+    "sag-ust": (0.5, 0, 1, 0.33),
 }
+
 
 
 # ============================================================================
@@ -138,8 +181,8 @@ def see_screen(
     Returns:
         Dict with analysis results
     """
-    if not GENAI_AVAILABLE:
-        return {"error": "Gemini API kullanılamıyor"}
+    # if not GENAI_AVAILABLE:
+    #     return {"error": "Gemini API kullanılamıyor"}
     
     # Get current frame from state
     try:
@@ -167,29 +210,66 @@ def see_screen(
     else:
         prompt = _PROMPTS["general"]
     
-    # Call Gemini Vision
+    # Call Router (Online -> Gemini, Offline -> Ollama)
     try:
         encoded_image = base64.b64encode(image_data).decode('utf-8')
         
-        response = _client.models.generate_content(
-            model="gemini-3-flash-preview",
-            contents=[{
-                "role": "user",
-                "parts": [
-                    {"text": prompt},
-                    {"inline_data": {"mime_type": mime_type, "data": encoded_image}}
-                ]
-            }],
-            config=genai.types.GenerateContentConfig(
-                response_mime_type="application/json"
+        # Check cache first
+        cache_key = _get_cache_key(image_data, prompt)
+        cached_result = _get_cached(cache_key)
+        if cached_result:
+            cached_result["_cached"] = True
+            return cached_result
+
+        # ------- ROUTER LOGIC --------
+        if _router.connection.is_online and _router.gemini_client:
+            # ONLINE: Gemini Vision
+            # Note: Import genai types locally since we removed global import
+            from google.genai import types
+            
+            response = _router.gemini_client.models.generate_content(
+                model="gemini-2.0-flash-exp", # Model güncellendi
+                contents=[{
+                    "role": "user",
+                    "parts": [
+                        {"text": prompt},
+                        {"inline_data": {"mime_type": mime_type, "data": encoded_image}}
+                    ]
+                }],
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json"
+                )
             )
-        )
-        
-        result = json.loads(response.text)
+            result = json.loads(response.text)
+
+        elif _router.connection.is_ollama_ready:
+             # OFFLINE: Ollama Vision
+             logger.info("Using OFFLINE Vision (Ollama)")
+             
+             # Offline prompt (kısa ve net)
+             offline_prompt = prompt + "\nProvide output in JSON format if possible."
+             vision_response = _router.ollama.analyze_image(image_bytes=image_data, prompt=offline_prompt)
+             
+             # Ollama'dan gelen string'i JSON'a çevirmeye çalış
+             try:
+                 # Markdown code block temizliği
+                 clean_json = vision_response.replace("```json", "").replace("```", "").strip()
+                 result = json.loads(clean_json)
+             except:
+                 # JSON değilse, düz metni bir yapıya oturt
+                 result = {"analysis": vision_response, "offline_mode": True}
+
+        else:
+             return {"error": "Ne internet ne de yerel model (Ollama) mevcut."}
+
+        # -----------------------------
         
         # Add metadata
         result["_region"] = region if region else "full"
         result["_task"] = task if task else "general"
+        
+        # Cache the result
+        _set_cache(cache_key, result)
         
         return result
         

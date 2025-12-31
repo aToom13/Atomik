@@ -2,6 +2,7 @@
 AtomBase Logging System
 Merkezi loglama altyapısı.
 """
+import os
 import logging
 import sys
 import json

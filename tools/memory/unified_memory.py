@@ -171,11 +171,14 @@ class EpisodicMemory:
                     metadatas=[metadata],
                     ids=[episode_id]
                 )
+                return f"✅ Hafızaya kaydedildi (Episode): {content[:50]}..."
             except Exception as e:
                 logger.error(f"ChromaDB save error: {e}")
                 self._save_to_fallback(content, metadata)
+                return f"⚠️ Fallback'e kaydedildi (Hata: {e})"
         else:
             self._save_to_fallback(content, metadata)
+            return f"✅ Hafızaya kaydedildi (Fallback): {content[:50]}..."
     
     def recall(
         self,

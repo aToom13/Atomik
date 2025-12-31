@@ -47,9 +47,9 @@ class CalcoderPro:
     
     def __init__(self, progress_callback: Callable[[str], None] = None):
         self.models = {
-            "planner": "gemini-2.0-flash",
-            "coder": "gemini-2.0-flash",
-            "tester": "gemini-2.0-flash",
+            "planner": "gemini-3-flash-preview",
+            "coder": "gemini-3-flash-preview",
+            "tester": "gemini-3-flash-preview",
         }
         self.workspace = WORKSPACE_DIR
         self.max_fix_attempts = 3

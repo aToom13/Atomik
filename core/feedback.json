@@ -1,5 +1,6 @@
 {
   "vision_rules": [
-    "Kullanıcı uykuya daldığında veya gözlerini uzun süre kapattığında 30 dakika sonra hatırlatıcı kur."
+    "Kullanıcı uykuya daldığında veya gözlerini uzun süre kapattığında 30 dakika sonra hatırlatıcı kur.",
+    null
   ]
 }

@@ -161,7 +161,7 @@ class TaskNLU:
             return f"{int(hour):02d}:{minute}"
         
         # "saat 3", "3'te" gibi ifadeler
-        hour_pattern = r'saat\s*(\d{1,2})|(\d{1,2})[\''][td]e'
+        hour_pattern = r"saat\s*(\d{1,2})|(\d{1,2})['][td]e"
         match = re.search(hour_pattern, text.lower())
         if match:
             hour = match.group(1) or match.group(2)
