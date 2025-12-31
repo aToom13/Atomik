@@ -26,16 +26,67 @@ def _clean_text(text: str, max_length: int = 1500) -> str:
     return text
 
 @tool
-def web_search(query: str, max_results: int = 5) -> str:
+def web_search(query: str, max_results: int = 5, search_depth: str = "basic") -> str:
     """
     Internet üzerinde arama yapar.
     Bilgi eksikliği olduğunda veya güncel bilgi gerektiğinde kullanın.
     
     Args:
-        query: Arama sorgusu (örn: "python request library usage")
+        query: Arama sorgusu
         max_results: Sonuç sayısı (varsayılan 5)
+        search_depth: Arama derinliği ('basic' veya 'deep')
     """
-    logger.info(f"Web search: {query}")
+    import os
+    
+    logger.info(f"Web search: {query} (Depth: {search_depth})")
+    
+    # Deep search requested
+    if search_depth == "deep":
+        tavily_key = os.getenv("TAVILY_API_KEY")
+        if not tavily_key:
+             # Try plural key and take the first one
+             keys = os.getenv("TAVILY_API_KEYS", "")
+             if keys:
+                 tavily_key = keys.split(",")[0].strip()
+        
+        if tavily_key:
+            try:
+                logger.info("Using Tavily API for deep research...")
+                payload = {
+                    "api_key": tavily_key,
+                    "query": query,
+                    "search_depth": "advanced",
+                    "include_answer": True,
+                    "max_results": max_results
+                }
+                response = requests.post("https://api.tavily.com/search", json=payload, timeout=30)
+                response.raise_for_status()
+                data = response.json()
+                
+                output = [f"🔬 Derin Araştırma Sonuçları ({query}):\n"]
+                
+                if data.get("answer"):
+                    output.append(f"💡 Özet Cevap:\n{data['answer']}\n")
+                
+                for i, r in enumerate(data.get("results", []), 1):
+                    output.append(f"{i}. {r.get('title', 'Başlık Yok')}")
+                    output.append(f"   🔗 {r.get('url', '')}")
+                    content = r.get('content', '')
+                    if len(content) > 300:
+                        content = content[:300] + "..."
+                    output.append(f"   📝 {content}\n")
+                
+                return "\n".join(output)
+                
+            except Exception as e:
+                logger.error(f"Tavily search failed: {e}")
+                output = [f"⚠️ Derin arama başarısız oldu: {e}\nStandart aramaya geçiliyor...\n"]
+        else:
+            output = ["⚠️ TAVILY_API_KEY bulunamadı. Standart aramaya geçiliyor...\n"]
+    else:
+        output = []
+
+    # Fallback or Basic Search (DuckDuckGo)
     try:
         with DDGS() as ddgs:
             results = list(ddgs.text(query, max_results=max_results))
@@ -43,7 +94,7 @@ def web_search(query: str, max_results: int = 5) -> str:
         if not results:
             return "Sonuç bulunamadı."
             
-        output = [f"🔍 '{query}' için sonuçlar:\n"]
+        output.append(f"🔍 '{query}' için sonuçlar:\n")
         for i, r in enumerate(results, 1):
             output.append(f"{i}. {r.get('title', 'Başlık Yok')}")
             output.append(f"   🔗 {r.get('href', '')}")

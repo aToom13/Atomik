@@ -61,25 +61,31 @@ class TestSemanticMemory:
 
 class TestEpisodicMemory:
     @pytest.fixture
-    def em(self, mock_genai_client, mock_chromadb):
-        """Create EpisodicMemory with mocked backend"""
-        # Reset global client/collection in rag_memory to ensure mock is used
-        from tools.memory import rag_memory
-        rag_memory._client = None
-        rag_memory._collection = None
+    def em(self, tmp_path, mocker):
+        """Create EpisodicMemory with forced fallback mode for testing"""
+        # Mock chromadb import to force fallback mode
+        mocker.patch.dict('sys.modules', {'chromadb': None})
         
-        return EpisodicMemory()
+        # Also mock sentence_transformers to be safe
+        mocker.patch.dict('sys.modules', {'sentence_transformers': None})
+        
+        from tools.memory.unified_memory import EpisodicMemory
+        em = EpisodicMemory()
+        # Ensure fallback mode (no ChromaDB)
+        em.use_chroma = False
+        em._fallback_episodes = []
+        return em
 
     def test_save_episode(self, em):
         """Test saving without error"""
-        result = em.save_episode("Test episode", {"type": "test"})
+        # save_episode returns message when importance >= 0.3
+        result = em.save_episode("Test episode", {"type": "test"}, importance=0.5)
         # Should return success message
-        assert "kaydedildi" in result.lower(), f"Unexpected result: {result}"
+        assert result is not None and "kaydedildi" in result.lower(), f"Unexpected result: {result}"
 
     def test_fallback_search(self, em):
         """Test fallback search when chroma is mocked/empty"""
-        # Force fallback behavior
-        em.use_chroma = False
+        # Force fallback behavior (already set in fixture)
         em._save_to_fallback("Test memory", {"date": "2024-01-01"})
         
         results = em._search_fallback("Test")

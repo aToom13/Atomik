@@ -9,6 +9,6 @@ def test_inspect_page_no_connection(mocker):
     # Mock urllib.request.urlopen to raise error
     mocker.patch("urllib.request.urlopen", side_effect=Exception("Connection refused"))
     
-    result = inspect_web_page()
+    result = inspect_web_page.invoke({})
     # Should return instructions or error message, not crash
     assert "tarayıcı" in result.lower() or "hata" in result.lower() or "connected" in result.lower()

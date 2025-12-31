@@ -263,5 +263,31 @@ def process_conversation_for_learning(user_msg: str, agent_msg: str) -> None:
         for fact in facts:
             if fact["confidence"] >= 0.7:
                 add_fact(fact["raw"][:50])
+
     except:
         pass  # Fail silently
+
+
+def save_profile_context(context_type: str, content: str) -> str:
+    """Save generic context or notes to the user profile."""
+    try:
+        profile = load_profile()
+        if "context_log" not in profile:
+            profile["context_log"] = []
+            
+        entry = {
+            "type": context_type,
+            "content": content,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+        profile["context_log"].append(entry)
+        
+        # Keep only last 50 entries
+        if len(profile["context_log"]) > 50:
+            profile["context_log"] = profile["context_log"][-50:]
+            
+        save_profile(profile)
+        return f"✅ Bağlam kaydedildi: {context_type}"
+    except Exception as e:
+        return f"❌ Hata: {str(e)}"

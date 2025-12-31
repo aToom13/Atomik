@@ -333,12 +333,17 @@ TOOL_DECLARATIONS = [
     # ===== WEB TOOLS =====
     {
         "name": "web_search",
-        "description": "Performs a real web search (Google/DuckDuckGo) to get up-to-date information.",
+        "description": "Performs a real web search to get up-to-date information. Use 'deep' mode for comprehensive research.",
         "parameters": {
             "type": "OBJECT",
             "properties": {
                 "query": {"type": "STRING", "description": "Search query"},
-                "num_results": {"type": "INTEGER", "description": "Number of results (default: 5)"}
+                "num_results": {"type": "INTEGER", "description": "Number of results (default: 5)"},
+                "search_depth": {
+                    "type": "STRING", 
+                    "enum": ["basic", "deep"], 
+                    "description": "Search depth. 'basic' for quick results (DDG), 'deep' for comprehensive research (Tavily)."
+                }
             },
             "required": ["query"]
         }
@@ -396,7 +401,35 @@ TOOL_DECLARATIONS = [
             },
             "required": ["rule"]
         }
-    }
+    },
+    # =========================================================================
+    # MCP ARAÇLARI - Memory & Sequential Thinking
+    # ARTIK DİNAMİK OLARAK MCP CLIENT TARAFINDAN YÜKLENİYOR
+    # =========================================================================
+
+    # ===== VOICE RECORDING TOOLS =====
+    {
+        "name": "start_voice_recording",
+        "description": "Starts recording Atomik's voice output. Call this before speaking a message you want to record.",
+        "parameters": {"type": "OBJECT", "properties": {}}
+    },
+    {
+        "name": "stop_voice_recording",
+        "description": "Stops recording and saves the audio file. Returns the file path.",
+        "parameters": {"type": "OBJECT", "properties": {}}
+    },
+    {
+        "name": "send_voice_whatsapp",
+        "description": "Sends the last recorded voice message via WhatsApp to a recipient.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "recipient": {"type": "STRING", "description": "Phone number with country code (e.g., 905551234567) or WhatsApp JID"}
+            },
+            "required": ["recipient"]
+        }
+    },
+
 ]
 
 

@@ -83,8 +83,12 @@ class ConnectionManager:
         """DNS ping ile internet kontrolü"""
         try:
             socket.setdefaulttimeout(timeout)
-            socket.socket(socket.AF_INET, socket.SOCK_STREAM).connect((host, port))
-            return True
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            try:
+                s.connect((host, port))
+                return True
+            finally:
+                s.close()
         except socket.error:
             return False
 

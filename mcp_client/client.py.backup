@@ -1,0 +1,237 @@
+"""
+MCP Client Manager - Connect to external MCP servers
+"""
+import asyncio
+import json
+import os
+from pathlib import Path
+from typing import Optional
+
+# MCP SDK imports
+try:
+    from mcp import ClientSession, StdioServerParameters
+    from mcp.client.stdio import stdio_client
+    MCP_SDK_AVAILABLE = True
+except ImportError:
+    MCP_SDK_AVAILABLE = False
+    print("⚠️ MCP SDK not installed. Run: pip install mcp")
+
+
+class MCPClientManager:
+    """Manages connections to external MCP servers"""
+    
+    def __init__(self, config_path: str = None):
+        self.sessions = {}
+        self.context_managers = {}
+        self._config_path = config_path
+    
+    @property
+    def config_path(self) -> Path:
+        if self._config_path:
+            return Path(self._config_path)
+        return Path(__file__).parent / "servers.json"
+    
+    @property
+    def connected_servers(self) -> list:
+        return list(self.sessions.keys())
+    
+    async def connect(self, name: str, command: str, args: list, env: dict = None) -> bool:
+        if not MCP_SDK_AVAILABLE:
+            print(f"❌ MCP SDK not available, cannot connect to {name}")
+            return False
+        
+        try:
+            full_env = os.environ.copy()
+            if env:
+                for key, value in env.items():
+                    if isinstance(value, str) and value.startswith("${") and value.endswith("}"):
+                        env_var = value[2:-1]
+                        full_env[key] = os.environ.get(env_var, "")
+                    else:
+                        full_env[key] = value
+            
+            params = StdioServerParameters(command=command, args=args, env=full_env)
+            stdio_cm = stdio_client(params)
+            
+            read_stream, write_stream = await asyncio.wait_for(
+                stdio_cm.__aenter__(), 
+                timeout=30.0
+            )
+            
+            self.context_managers[name] = stdio_cm
+            session = ClientSession(read_stream, write_stream)
+            
+            await asyncio.wait_for(
+                session.initialize(),
+                timeout=15.0
+            )
+            
+            self.sessions[name] = session
+            print(f"✅ MCP: Connected to '{name}'")
+            return True
+            
+        except asyncio.TimeoutError:
+            print(f"⏰ MCP: Connection to '{name}' timed out")
+            if name in self.context_managers:
+                try:
+                    await self.context_managers[name].__aexit__(None, None, None)
+                except:
+                    pass
+                del self.context_managers[name]
+            return False
+        except Exception as e:
+            print(f"❌ MCP: Failed to connect to '{name}': {e}")
+            if name in self.context_managers:
+                try:
+                    await self.context_managers[name].__aexit__(None, None, None)
+                except:
+                    pass
+                del self.context_managers[name]
+            return False
+    
+    async def connect_from_config(self) -> int:
+        if not self.config_path.exists():
+            print(f"⚠️ MCP config not found: {self.config_path}")
+            return 0
+        
+        try:
+            config = json.loads(self.config_path.read_text())
+        except json.JSONDecodeError as e:
+            print(f"❌ MCP config parse error: {e}")
+            return 0
+        
+        servers = config.get("mcpServers", {})
+        if not servers:
+            print("ℹ️ No MCP servers configured")
+            return 0
+        
+        success_count = 0
+        for name, server in servers.items():
+            command = server.get("command")
+            args = server.get("args", [])
+            env = server.get("env", {})
+            
+            if not command:
+                print(f"⚠️ MCP: Server '{name}' missing command")
+                continue
+            
+            try:
+                if await self.connect(name, command, args, env):
+                    success_count += 1
+            except Exception as e:
+                print(f"⚠️ MCP: Server '{name}' failed: {e}")
+                continue
+        
+        return success_count
+    
+    async def list_tools(self, server: str = None) -> list:
+        tools = []
+        targets = [server] if server else self.sessions.keys()
+        
+        for name in targets:
+            if name not in self.sessions:
+                continue
+            
+            try:
+                result = await self.sessions[name].list_tools()
+                for tool in result.tools:
+                    tools.append({
+                        "server": name,
+                        "name": tool.name,
+                        "description": tool.description,
+                        "inputSchema": tool.inputSchema if hasattr(tool, 'inputSchema') else {}
+                    })
+            except Exception as e:
+                print(f"⚠️ MCP: Failed to list tools from '{name}': {e}")
+        
+        return tools
+    
+    async def list_resources(self, server: str = None) -> list:
+        resources = []
+        targets = [server] if server else self.sessions.keys()
+        
+        for name in targets:
+            if name not in self.sessions:
+                continue
+            
+            try:
+                result = await self.sessions[name].list_resources()
+                for resource in result.resources:
+                    resources.append({
+                        "server": name,
+                        "uri": resource.uri,
+                        "name": resource.name,
+                        "description": getattr(resource, 'description', '')
+                    })
+            except Exception as e:
+                print(f"⚠️ MCP: Failed to list resources from '{name}': {e}")
+        
+        return resources
+    
+    async def call_tool(self, server: str, tool_name: str, args: dict = None) -> str:
+        if server not in self.sessions:
+            return f"Error: Server '{server}' not connected"
+        
+        try:
+            result = await self.sessions[server].call_tool(tool_name, args or {})
+            
+            if hasattr(result, 'content') and result.content:
+                contents = []
+                for item in result.content:
+                    if hasattr(item, 'text'):
+                        contents.append(item.text)
+                return "\n".join(contents) if contents else str(result)
+            
+            return str(result)
+            
+        except Exception as e:
+            return f"Error calling {server}:{tool_name}: {e}"
+    
+    async def read_resource(self, server: str, uri: str) -> str:
+        if server not in self.sessions:
+            return f"Error: Server '{server}' not connected"
+        
+        try:
+            result = await self.sessions[server].read_resource(uri)
+            
+            if hasattr(result, 'contents') and result.contents:
+                contents = []
+                for item in result.contents:
+                    if hasattr(item, 'text'):
+                        contents.append(item.text)
+                return "\n".join(contents) if contents else str(result)
+            
+            return str(result)
+            
+        except Exception as e:
+            return f"Error reading {uri} from {server}: {e}"
+    
+    async def disconnect(self, server: str):
+        if server in self.sessions:
+            try:
+                await self.sessions[server].close()
+            except:
+                pass
+            del self.sessions[server]
+            
+        if server in self.context_managers:
+            try:
+                await self.context_managers[server].__aexit__(None, None, None)
+            except:
+                pass
+            del self.context_managers[server]
+    
+    async def disconnect_all(self):
+        for name in list(self.sessions.keys()):
+            await self.disconnect(name)
+        print("ℹ️ MCP: Disconnected from all servers")
+
+
+_manager: Optional[MCPClientManager] = None
+
+
+def get_mcp_manager() -> MCPClientManager:
+    global _manager
+    if _manager is None:
+        _manager = MCPClientManager()
+    return _manager

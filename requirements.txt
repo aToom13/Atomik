@@ -11,3 +11,6 @@ pyperclip
 plyer
 tavily-python
 chromadb
+
+# MCP Client
+mcp>=1.25.0

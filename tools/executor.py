@@ -69,9 +69,61 @@ except ImportError as e:
     print(f"{Colors.YELLOW}AtomBase araçları yüklenemedi: {e}{Colors.RESET}")
 
 
+def _run_mcp_async(coro):
+    """Helper to run async MCP calls from sync context"""
+    import asyncio
+    import concurrent.futures
+    
+    try:
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            # Already in async context, use thread pool
+            with concurrent.futures.ThreadPoolExecutor() as pool:
+                future = pool.submit(asyncio.run, coro)
+                return future.result(timeout=30)
+        else:
+            return loop.run_until_complete(coro)
+    except Exception as e:
+        return f"❌ MCP async error: {e}"
+
+
 def execute_tool(name: str, args: dict) -> str:
     """Execute an AtomBase tool and return the result."""
     try:
+        # ===== MCP TOOL CHECK =====
+        # Format: "mcp:server_name:tool_name"
+        if name.startswith("mcp:"):
+            parts = name.split(":", 2)
+            if len(parts) == 3:
+                _, server, tool = parts
+                try:
+                    import asyncio
+                    from mcp_client import get_mcp_manager
+                    manager = get_mcp_manager()
+                    
+                    # Run async call in sync context
+                    loop = asyncio.get_event_loop()
+                    if loop.is_running():
+                        # Already in async context, create task
+                        import concurrent.futures
+                        with concurrent.futures.ThreadPoolExecutor() as pool:
+                            future = pool.submit(asyncio.run, manager.call_tool(server, tool, args))
+                            return future.result(timeout=30)
+                    else:
+                        return loop.run_until_complete(manager.call_tool(server, tool, args))
+                except Exception as e:
+                    return f"❌ MCP tool error: {e}"
+            else:
+                return f"❌ Invalid MCP tool format. Use: mcp:server:tool"
+        
+        # ===== MCP DIRECT TOOLS (dynamic - for Gemini function calling) =====
+        if name.startswith("mcp_"):
+            try:
+                from mcp_client import execute_mcp_tool
+                return execute_mcp_tool(name, args)
+            except Exception as e:
+                return f"❌ MCP tool error: {e}"
+        
         if name == "get_current_time":
             return get_current_time.invoke({})
         elif name == "get_current_location":
@@ -176,10 +228,6 @@ ALTYAZI (TRANSKRIPT):
         elif name == "exit_app":
             state.exit_requested = True
             return "Güle güle! Seninle sohbet etmek güzeldi. Tekrar görüşmek üzere!"
-        # Visual Memory Tools
-            return "Görsel hafıza kullanılamıyor"
-        # Redirect deprecated visual memory
-        # (Handled above in consolidated block)
 
         # Screen Sharing Tools
         elif name == "share_screen":
@@ -252,6 +300,7 @@ ALTYAZI (TRANSKRIPT):
             
             query = args.get("query", "")
             num_results = args.get("num_results", 5)
+            search_depth = args.get("search_depth", "basic")
             results = []
             
             # ===== Method 1: Tavily API with Key Rotation =====
@@ -264,7 +313,9 @@ ALTYAZI (TRANSKRIPT):
                         from tavily import TavilyClient
                         client = TavilyClient(api_key=api_key)
                         
-                        response = client.search(query, max_results=num_results, search_depth="basic")
+                        # Tavily SDK uses "advanced" for deep search
+                        tavily_depth = "advanced" if search_depth == "deep" else "basic"
+                        response = client.search(query, max_results=num_results, search_depth=tavily_depth)
                         
                         if response and response.get("results"):
                             for i, r in enumerate(response["results"][:num_results]):
@@ -346,70 +397,10 @@ ALTYAZI (TRANSKRIPT):
             except Exception as e:
                 return f"Bildirim gösterilemedi: {str(e)}"
         
-        # ===== RAG MEMORY TOOLS =====
         # ===== RAG MEMORY TOOLS (Deprecated) =====
         elif name in ["remember_this", "recall_memory", "get_recent_memories"]:
              return "⚠️ Bu araç birleştirildi. Lütfen 'manage_memory' veya 'query_memory' aracını kullanın."
-
         
-        # ===== WEB SCRAPER TOOL =====
-        elif name == "visit_webpage":
-            try:
-                import requests
-                from bs4 import BeautifulSoup
-                
-                url = args.get("url", "")
-                if not url:
-                    return "URL belirtilmedi."
-                
-                # Add protocol if missing
-                if not url.startswith("http"):
-                    url = "https://" + url
-                
-                headers = {
-                    'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36',
-                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                    'Accept-Language': 'tr-TR,tr;q=0.9,en;q=0.8',
-                }
-                
-                response = requests.get(url, headers=headers, timeout=15)
-                response.raise_for_status()
-                
-                soup = BeautifulSoup(response.text, 'html.parser')
-                
-                # Remove scripts, styles, nav, footer
-                for tag in soup(['script', 'style', 'nav', 'footer', 'header', 'aside', 'form']):
-                    tag.decompose()
-                
-                # Get title
-                title = soup.title.string if soup.title else "Başlık yok"
-                
-                # Get main content
-                main = soup.find('main') or soup.find('article') or soup.find('body')
-                if main:
-                    text = main.get_text(separator='\n', strip=True)
-                else:
-                    text = soup.get_text(separator='\n', strip=True)
-                
-                # Clean up whitespace
-                lines = [line.strip() for line in text.splitlines() if line.strip()]
-                text = '\n'.join(lines)
-                
-                # Truncate for token efficiency
-                max_chars = 3000
-                if len(text) > max_chars:
-                    text = text[:max_chars] + "...\n[İçerik kısaltıldı]"
-                
-                return f"📄 {title}\n\n{text}"
-                
-            except requests.exceptions.Timeout:
-                return "❌ Sayfa yüklenemedi: Zaman aşımı"
-            except requests.exceptions.RequestException as e:
-                return f"❌ Sayfa yüklenemedi: {str(e)}"
-            except Exception as e:
-                return f"❌ Sayfa okuma hatası: {str(e)}"
-        
-        # ===== SESSION HISTORY TOOLS =====
         # ===== SESSION HISTORY TOOLS (Deprecated) =====
         elif name in ["search_chat_history", "get_chat_stats"]:
             return "⚠️ Bu araç birleştirildi. Lütfen 'query_memory' aracını kullanın."
@@ -844,6 +835,57 @@ ALTYAZI (TRANSKRIPT):
                     return f"❌ Hata: {result.get('error', 'Bilinmeyen')}"
             except Exception as e:
                 return f"❌ Görev çıkarma hatası: {str(e)}"
+        
+        # ===== VOICE RECORDING TOOLS =====
+        elif name == "start_voice_recording":
+            try:
+                from audio.voice_recorder import get_voice_recorder
+                recorder = get_voice_recorder()
+                recorder.start_recording()
+                return "🎙️ Ses kaydı başlatıldı. Konuşmam tamamlandığında 'stop_voice_recording' çağır."
+            except Exception as e:
+                return f"❌ Ses kaydı başlatma hatası: {str(e)}"
+        
+        elif name == "stop_voice_recording":
+            try:
+                from audio.voice_recorder import get_voice_recorder
+                recorder = get_voice_recorder()
+                filepath = recorder.stop_recording()
+                if filepath:
+                    return f"✅ Ses kaydedildi: {filepath}"
+                else:
+                    return "❌ Kayıt çok kısa veya boş."
+            except Exception as e:
+                return f"❌ Ses kaydı durdurma hatası: {str(e)}"
+        
+        elif name == "send_voice_whatsapp":
+            try:
+                from audio.voice_recorder import get_voice_recorder
+                from mcp_client import execute_mcp_tool
+                
+                recorder = get_voice_recorder()
+                filepath = recorder.get_last_recording()
+                
+                if not filepath:
+                    return "❌ Önce bir ses kaydı oluştur (start_voice_recording → konuş → stop_voice_recording)"
+                
+                recipient = args.get("recipient", "")
+                if not recipient:
+                    return "❌ Alıcı numarası gerekli."
+                
+                # Format recipient as JID if needed
+                if not "@" in recipient:
+                    recipient = f"{recipient}@s.whatsapp.net"
+                
+                # Send via WhatsApp MCP
+                result = execute_mcp_tool("mcp_whatsapp_send_audio_message", {
+                    "recipient": recipient,
+                    "media_path": filepath
+                })
+                
+                return f"✅ Sesli mesaj gönderildi: {recipient}"
+            except Exception as e:
+                return f"❌ WhatsApp sesli mesaj hatası: {str(e)}"
             
         else:
             return f"Unknown tool: {name}"

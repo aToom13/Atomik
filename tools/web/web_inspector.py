@@ -33,8 +33,8 @@ def get_debug_url(port=9222):
             for page in data:
                 if page.get("type") == "page" and "webSocketDebuggerUrl" in page:
                     return page["webSocketDebuggerUrl"]
-    except (urllib.error.HTTPError, urllib.error.URLError) as e:
-        # 404 veya diğer hatalarda, doğrudan WebSocket bağlantılarını dene
+    except Exception as e:
+        # Handle any connection error: HTTPError, URLError, or other exceptions
         logger.warning(f"Connection Error ({e}) (Port {port}), waiting and trying direct WebSocket candidates...")
         time.sleep(1) 
         

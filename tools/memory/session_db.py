@@ -250,3 +250,25 @@ def clear_all_history() -> str:
     conn.commit()
     
     return "✅ Tüm sohbet geçmişi silindi."
+
+
+def get_recent_context(limit: int = 15) -> List[Dict]:
+    """
+    Get recent messages across ALL sessions for context restoration.
+    Used to restore memory after a restart/crash.
+    """
+    conn = _get_conn()
+    cursor = conn.cursor()
+    
+    # Get last N messages regarding of session
+    cursor.execute("""
+        SELECT role, content, timestamp 
+        FROM messages 
+        ORDER BY timestamp DESC
+        LIMIT ?
+    """, (limit,))
+    
+    # Return in reverse order (oldest first) for conversation flow
+    rows = cursor.fetchall()
+    results = [dict(row) for row in rows]
+    return results[::-1]

@@ -1,11 +1,60 @@
+# Python
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+
+# Environment
 .env
-.atom_checkpoints/
-atombase.log
-atom_workspace/
+.venv/
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
 *.DS_Store
-AtomBase/prompts/supervisor.txt
-AtomBase/prompts/supervisor.txt
-AtomBase/prompts/supervisor.txt
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Atomik - Checkpoints & Workspace
+.atom_checkpoints/
+atom_workspace/
 *_transcript.txt
+
+# Atomik - Personal Data (CRITICAL: Don't commit personal info)
+AtomBase/prompts/supervisor.txt
+
+# Atomik - Memory Data (contains personal conversations)
+AtomBase/.memory/
+tools/.memory/
+data/memory/
+*.chroma/
+chroma_db/
+
+# Atomik - WhatsApp MCP (contains chat data and session)
+tools/whatsapp-mcp/whatsapp-bridge/store/
+tools/whatsapp-mcp/whatsapp-mcp-server/contacts.json
+
+# Atomik - Session Database
+*.db
+sessions.db
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
+
+# Test artifacts
+.pytest_cache/
+.coverage
+htmlcov/

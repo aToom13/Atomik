@@ -14,6 +14,8 @@ import pyaudio
 import struct
 import math
 import time
+import subprocess
+import atexit
 
 # Ensure project root is in path
 _project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -41,6 +43,49 @@ pya = pyaudio.PyAudio()
 # Gemini client
 client = genai.Client(http_options={"api_version": "v1beta"}, api_key=API_KEY)
 
+# Global Kali Process Handle
+_kali_process = None
+_kali_log_file = None
+
+def _start_kali_server():
+    """Starts the Kali MCP Server in the background if not already running."""
+    global _kali_process, _kali_log_file
+    try:
+        # Check if port 5000 is already in use (rudimentary check)
+        import socket
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        result = sock.connect_ex(('127.0.0.1', 5000))
+        sock.close()
+        
+        if result == 0:
+            print(f"{Colors.YELLOW}⚠️ Port 5000 dolu. Kali Server zaten çalışıyor olabilir.{Colors.RESET}")
+            return
+
+        server_path = os.path.join(_project_root, "tools", "kali_mcp", "kali_server.py")
+        if not os.path.exists(server_path):
+             print(f"{Colors.RED}❌ Kali Server dosyası bulunamadı: {server_path}{Colors.RESET}")
+             return
+
+        print(f"{Colors.CYAN}🚀 Kali MCP Sunucusu başlatılıyor...{Colors.RESET}")
+        
+        # Start in background, redirect output to log file
+        _kali_log_file = open("kali_server.log", "w")
+        _kali_process = subprocess.Popen(
+            [sys.executable, server_path],
+            stdout=_kali_log_file,
+            stderr=subprocess.STDOUT,
+            cwd=os.path.dirname(server_path)
+        )
+        print(f"{Colors.GREEN}✅ Kali Server başlatıldı (PID: {_kali_process.pid}){Colors.RESET}")
+        
+        # Give it a moment to start
+        time.sleep(2)
+        
+    except Exception as e:
+        print(f"{Colors.RED}❌ Kali Server başlatma hatası: {e}{Colors.RESET}")
+
+
+
 # Config with tools
 tools_config = [
     {"google_search": {}},
@@ -63,6 +108,77 @@ config = types.LiveConnectConfig(
     )
 )
 
+def _process_schema(schema: dict) -> dict:
+    """Recursively clean schema, retain only allowed keys, and uppercase types."""
+    if not isinstance(schema, dict):
+        return schema
+        
+    new_schema = {}
+    
+    # 1. Handle Type (Convert to Upper)
+    if "type" in schema:
+        val = schema["type"]
+        if isinstance(val, str):
+            new_schema["type"] = val.upper()
+        elif isinstance(val, list):
+            # Gemini typically expects a single type. Handle ["string", "null"]
+            types = [v for v in val if v != "null"]
+            if types:
+                # Use the first non-null type
+                first = types[0]
+                new_schema["type"] = first.upper() if isinstance(first, str) else first
+    
+    # 2. Whitelist allowed keys
+    # Gemini API Schema allowed fields
+    allowed_keys = ["format", "description", "nullable", "enum", "properties", "required", "items"]
+    for key in allowed_keys:
+        if key in schema:
+            new_schema[key] = schema[key]
+            
+    # 3. Recursively process nested structures
+    if "properties" in new_schema:
+        new_props = {}
+        for k, v in new_schema["properties"].items():
+            new_props[k] = _process_schema(v)
+        new_schema["properties"] = new_props
+        
+    if "items" in new_schema:
+        new_schema["items"] = _process_schema(new_schema["items"])
+        
+    return new_schema
+
+def _convert_to_gemini_tools(mcp_tools: list) -> list:
+    """Converts MCP tool definitions to Gemini function declarations"""
+    declarations = []
+    for tool in mcp_tools:
+        # MCP tool format: {name, description, inputSchema}
+        # Gemini format: {name, description, parameters}
+        
+        raw_schema = tool.get("inputSchema", {})
+        
+        # Process the schema (Whitelist keys + Upper types)
+        schema = _process_schema(raw_schema)
+        
+        # Ensure top-level type is OBJECT (Gemini requirement for tool inputs)
+        if schema.get("type") != "OBJECT":
+            schema["type"] = "OBJECT"
+            
+        # Debug: Print tool if needed, but let's trust the whitelist
+        
+        # Create unique name with server prefix to avoid collisions
+        safe_server = tool["server"].replace("-", "_")
+        safe_name = tool["name"].replace("-", "_")
+        full_name = f"mcp_{safe_server}_{safe_name}"
+        
+        decl = {
+            "name": full_name,
+            "description": f"[MCP:{tool['server']}] {tool.get('description', '')}",
+            "parameters": schema
+        }
+        declarations.append(decl)
+    return declarations
+
+
 # Import memory function if available
 try:
     from AtomBase.tools.memory import add_to_history
@@ -79,11 +195,12 @@ except ImportError:
 
 # Import SQLite session database for persistent history
 try:
-    from tools.memory.session_db import save_message as db_save_message, start_session as db_start_session
+    from tools.memory.session_db import save_message as db_save_message, start_session as db_start_session, get_recent_context
     SESSION_DB_AVAILABLE = True
 except ImportError:
     db_save_message = lambda *args: None
     db_start_session = lambda: None
+    get_recent_context = lambda *args: []
     SESSION_DB_AVAILABLE = False
 
 # Import learning module for startup context and fact extraction
@@ -107,6 +224,10 @@ class AudioLoop:
         self._silence_start_time = None
         self._skip_next_transcription = False  # Skip stale transcription after tool call
         self._vad_chunk_counter = 0  # Performance: VAD every 3 chunks
+        
+        # Reconnect tracking
+        self._is_reconnect = False  # True if this is a reconnection, not first connect
+        self._conversation_history = []  # Recent messages for reconnect context
         
         # Set global reference needed by tools
         state.active_loop = self
@@ -237,7 +358,7 @@ class AudioLoop:
                             print(f"{Colors.BLUE}   → {fc.name}({fc.args}){Colors.RESET}")
                             
                             if ATOMBASE_AVAILABLE:
-                                result = execute_tool(fc.name, fc.args or {})
+                                result = await asyncio.to_thread(execute_tool, fc.name, fc.args or {})
                             else:
                                 result = "AtomBase araçları yüklenmedi"
                             
@@ -348,6 +469,14 @@ class AudioLoop:
                                 print()
                                 user_buffer = ""
                             
+                            # Save to conversation history for reconnect context
+                            if hasattr(self, '_complete_user_msg') and self._complete_user_msg:
+                                self._conversation_history.append({"role": "user", "text": self._complete_user_msg})
+                            if hasattr(self, '_complete_agent_msg') and self._complete_agent_msg:
+                                self._conversation_history.append({"role": "agent", "text": self._complete_agent_msg})
+                            # Keep only last 10 messages for context
+                            self._conversation_history = self._conversation_history[-10:]
+                            
                             # Auto-save to RAG memory (persistent across sessions)
                             if RAG_AVAILABLE and hasattr(self, '_complete_user_msg') and hasattr(self, '_complete_agent_msg'):
                                 if self._complete_user_msg and self._complete_agent_msg:
@@ -380,14 +509,22 @@ class AudioLoop:
             raise
     
     async def play_audio(self):
+        # Import voice recorder for optional recording
+        from audio.voice_recorder import get_voice_recorder
+        voice_recorder = get_voice_recorder()
+        
         output_device_index = None
         for i in range(pya.get_device_count()):
             try:
                 info = pya.get_device_info_by_index(i)
                 if info['maxOutputChannels'] > 0:
-                    stream = pya.open(
-                        format=FORMAT, channels=CHANNELS,
-                        rate=RECEIVE_SAMPLE_RATE, output=True,
+                    stream = await asyncio.to_thread(
+                        pya.open,
+                        format=FORMAT,
+                        channels=CHANNELS,
+                        rate=RECEIVE_SAMPLE_RATE,
+                        output=True,
+                        frames_per_buffer=8192,  # Increased buffer to prevent underruns
                         output_device_index=i
                     )
                     stream.close()
@@ -413,6 +550,8 @@ class AudioLoop:
             bytestream = await self.audio_in_queue.get()
             # Echo Cancellation: Register speaker output
             aec.feed_speaker(bytestream)
+            # Voice Recording: Feed to recorder if active
+            voice_recorder.feed_audio(bytestream)
             await asyncio.to_thread(stream.write, bytestream)
     
     async def proactive_check(self):
@@ -513,6 +652,66 @@ class AudioLoop:
     
     
     async def run(self):
+        # ===== MCP CLIENT INITIALIZATION =====
+        # MCP is optional - failures should not crash the app
+        try:
+            if ATOMBASE_AVAILABLE:
+                from mcp_client import get_mcp_manager
+                
+                # Auto-start Kali Server
+                _start_kali_server()
+                
+                # Connect to MCP servers
+                mcp_manager = get_mcp_manager()
+                connected = await mcp_manager.connect_from_config()
+                if connected > 0:
+                     print(f"{Colors.GREEN}🔌 MCP: {connected} sunucuya bağlandı{Colors.RESET}")
+                     
+                     # Fetch and inject tools dynamically
+                     try:
+                         mcp_tools = await mcp_manager.list_tools()
+                         if mcp_tools:
+                             gemini_tools = _convert_to_gemini_tools(mcp_tools)
+                             print(f"{Colors.CYAN}🛠️  MCP Araçları Eklendi: {len(gemini_tools)} adet{Colors.RESET}")
+                             
+                             # Update global TOOL_DECLARATIONS or config?
+                             # We need to recreate the tools_config for THIS session
+                             current_tools = [{"google_search": {}}]
+                             
+                             # Combine static and dynamic tools
+                             all_decls = TOOL_DECLARATIONS + gemini_tools
+                             current_tools.append({"function_declarations": all_decls})
+                             
+                             # Create a NEW config object for this session with updated tools
+                             # Create the config with the tools
+                             tools_config = [{"function_declarations": all_decls}]
+                             
+                             # We must copy existing config settings
+                             self.session_config = types.LiveConnectConfig(
+                                response_modalities=config.response_modalities,
+                                output_audio_transcription=config.output_audio_transcription,
+                                input_audio_transcription=config.input_audio_transcription,
+                                system_instruction=config.system_instruction,
+                                tools=tools_config, # Use the newly created tools_config
+                                speech_config=config.speech_config
+                             )
+                         else:
+                             self.session_config = config
+                     except Exception as tool_err:
+                         print(f"{Colors.RED}⚠️ MCP Tool Fetch Error: {tool_err}{Colors.RESET}")
+                         self.session_config = config
+                else:
+                     self.session_config = config
+            else:
+                self.session_config = config
+            
+        except ImportError:
+            pass  # MCP SDK not installed
+            self.session_config = config
+        except Exception as e:
+            print(f"{Colors.YELLOW}⚠️ MCP başlatma hatası (devam ediliyor): {e}{Colors.RESET}")
+            self.session_config = config
+        
         # 1. Check Connection Strategy
         cm = get_connection_manager()
         
@@ -550,7 +749,7 @@ class AudioLoop:
             try:
                 print(f"{Colors.DIM}Model: {self.model_to_use}{Colors.RESET}")
                 async with (
-                    client.aio.live.connect(model=self.model_to_use, config=config) as session,
+                    client.aio.live.connect(model=self.model_to_use, config=self.session_config) as session,
                     asyncio.TaskGroup() as tg,
                 ):
                     self.session = session
@@ -559,17 +758,78 @@ class AudioLoop:
                     
                     print(f"{Colors.GREEN}✓ Bağlandı! ({self.model_to_use}){Colors.RESET}")
                     
-                    # Load and inject startup context (memories, profile, mood)
-                    if LEARNING_AVAILABLE:
+                    # Determine what context to inject based on reconnect status
+
+                    # Determine what context to inject
+                    # 1. RECONNECT within same run (memory variable present)
+                    if self._is_reconnect and self._conversation_history:
+                        print(f"{Colors.CYAN}🔄 Oturum içi bağlantı yenileniyor...{Colors.RESET}")
+                        # ... maintain existing logic ...
+                        history_to_send = self._conversation_history[-10:]
+                        
+                        history_text = "\n".join([
+                            f"{'Kullanıcı' if m['role'] == 'user' else 'Sen'}: {m['text']}"
+                            for m in history_to_send
+                        ])
+                        
+                        reconnect_ctx = f"""[SİSTEM - BAĞLANTI YENİLEME]
+⚠️ Bağlantı hatası sonrası yeniden bağlanıldı.
+Son konuşma:
+{history_text}
+Kaldığın yerden devam et."""
+
+                        await session.send_client_content(
+                            turns=[{"role": "user", "parts": [{"text": reconnect_ctx}]}],
+                            turn_complete=True
+                        )
+                        await asyncio.sleep(0.5)
+
+                    # 2. FRESH START (Process restarted, load from DB)
+                    elif SESSION_DB_AVAILABLE:
+                        # Load recent context from Disk
+                        recent_db_msgs = get_recent_context(limit=10)
+                        
+                        if recent_db_msgs:
+                             print(f"{Colors.CYAN}📂 Eski sohbet geçmişi yükleniyor ({len(recent_db_msgs)} mesaj)...{Colors.RESET}")
+                             
+                             history_text = ""
+                             for msg in recent_db_msgs:
+                                 role_name = "Kullanıcı" if msg['role'] == "user" else "Sen"
+                                 history_text += f"{role_name}: {msg['content']}\n"
+                                 
+                                 # Populate partial local history so next reconnect works too
+                                 self._conversation_history.append({"role": msg['role'], "text": msg['content']})
+
+                             startup_ctx = f"""[SİSTEM - HAFIZA YÜKLEMESİ]
+⚠️ Program yeniden başlatıldı.
+Aşağıda önceki oturumdan kalan son konuşmalar var. BUNLARI SADECE HAFIZANDA TUT.
+Kullanıcıya tekrar "Merhaba" deme.
+ÖNEMLİ: Son cümleni veya önceki hataları TEKRAR ETME. Sanki o konuşmalar bitmiş ve şu an yeni bir nefesle devam ediyormuşsun gibi davran.
+Bunun yerine: "Sistem yeniden başladı, hazırım." gibi kısa bir bilgi ver veya kullanıcının son sorusuna cevap ver.
+
+GEÇMİŞ KONUŞMALAR:
+{history_text}
+
+[SON]
+"""
+                             # Inject startup context
+                             await session.send_client_content(
+                                 turns=[{"role": "user", "parts": [{"text": startup_ctx}]}],
+                                 turn_complete=True
+                             )
+                             await asyncio.sleep(0.5)
+                             
+                    # 3. First time ever or no history
+                    if LEARNING_AVAILABLE and not self._conversation_history:
+                        # Only load profile if we didn't just load conversation history
                         startup_ctx = get_startup_context()
+
                         if startup_ctx:
                             print(f"{Colors.CYAN}🧠 Hafıza yükleniyor...{Colors.RESET}")
-                            # Send context as initial text to Gemini
                             await session.send_client_content(
                                 turns=[{"role": "user", "parts": [{"text": f"[SİSTEM HAFIZA YÜKLEMESI - KULLANICIYA GÖRÜNMEZ]\n{startup_ctx}"}]}],
                                 turn_complete=True
                             )
-                            # Wait for context to be processed before accepting user input
                             await asyncio.sleep(1)
                     
                     print(f"{Colors.DIM}{'─' * 50}{Colors.RESET}")
@@ -672,9 +932,10 @@ class AudioLoop:
                     print(f"{Colors.CYAN}🔄 Otomatik yeniden bağlanılıyor...{Colors.RESET}")
                     await asyncio.sleep(2)  # Brief pause before reconnect
                     
-                    # Reset state for new session
+                    # Reset state for new session but MARK as reconnect
                     self._last_input_transcription = ""
                     self._last_output_transcription = ""
+                    self._is_reconnect = True  # Mark that this is a reconnection
                     continue # Re-start the while loop to connect again
                 else:
                     # Non-recoverable error? Let's try to reconnect anyway for robustness
@@ -685,4 +946,22 @@ class AudioLoop:
 
 
 def cleanup():
+    global _kali_process, _kali_log_file
     pya.terminate()
+    
+    if _kali_process:
+        print(f"{Colors.CYAN}🛑 Kali Server kapatılıyor...{Colors.RESET}")
+        _kali_process.terminate()
+        try:
+            _kali_process.wait(timeout=2)
+        except subprocess.TimeoutError:
+            _kali_process.kill()
+        print(f"{Colors.GREEN}✅ Kali Server kapatıldı.{Colors.RESET}")
+    
+    # Close log file handle
+    if _kali_log_file:
+        try:
+            _kali_log_file.close()
+        except:
+            pass
+

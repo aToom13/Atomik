@@ -9,9 +9,16 @@ class TestOllamaClient:
     @patch('requests.post')
     def test_generate_text_success(self, mock_post):
         """Chat fonksiyonu başarılı yanıt dönmeli"""
+        # OllamaClient uses streaming internally (stream=True in request)
+        # and collects chunks via iter_lines()
         mock_response = MagicMock()
         mock_response.status_code = 200
-        mock_response.json.return_value = {"message": {"content": "Hello from OLLAMA"}}
+        # Simulate streaming response with iter_lines
+        mock_response.iter_lines.return_value = [
+            b'{"message": {"content": "Hello "}, "done": false}',
+            b'{"message": {"content": "from "}, "done": false}',
+            b'{"message": {"content": "OLLAMA"}, "done": true}'
+        ]
         mock_post.return_value = mock_response
         
         client = OllamaClient()
@@ -19,7 +26,7 @@ class TestOllamaClient:
         
         assert response == "Hello from OLLAMA"
         # Timeout kontrolü
-        assert mock_post.call_args[1]['timeout'] == 30
+        assert mock_post.call_args[1]['timeout'] == 60  # Updated to match actual (60s, not 30s)
 
     @patch('requests.post')
     def test_generate_text_timeout(self, mock_post):
@@ -36,6 +43,7 @@ class TestOllamaClient:
         """Vision fonksiyonu başarılı yanıt dönmeli"""
         mock_response = MagicMock()
         mock_response.status_code = 200
+        # Vision API uses /api/generate which returns {"response": "..."} 
         mock_response.json.return_value = {"response": "A cat"}
         mock_post.return_value = mock_response
         
@@ -44,8 +52,8 @@ class TestOllamaClient:
             response = client.analyze_image("dummy.jpg")
             
         assert response == "A cat"
-        # Vision timeout kontrolü (90s olmalı)
-        assert mock_post.call_args[1]['timeout'] == 90
+        # Vision timeout kontrolü (180s olmalı)
+        assert mock_post.call_args[1]['timeout'] == 180
 
     def test_context_pruning(self):
         """Çok uzun contextler kırpılmalı"""
