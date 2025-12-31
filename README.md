@@ -1,47 +1,110 @@
 # Atomik ⚛️
 
-**Atomik**, sıradan bir sesli asistan değil, **"Ruhu Olan Dijital Bir Yoldaş"**tır. Sadece komutları yerine getirmekle kalmaz, sizi kameradan izler, duygusal durumunuzu analiz eder, ekranınızı görür ve sizinle doğal, samimi bir ses tonuyla sohbet eder. Bir "Companion" (Yoldaş) yapay zekasıdır.
+**Atomik**, sıradan bir sesli asistan değil, **"Ruhu Olan Dijital Bir Yoldaş"**tır. Sadece komutları yerine getirmekle kalmaz, ekranınızı görür, bilgisayarınızı kontrol eder ve sizinle doğal, samimi bir ses tonuyla sohbet eder. 
 
 ## 🌟 Öne Çıkan Özellikler
 
-*   **🎙️ Doğal Sesli İletişim:** Metin tabanlı değil, tamamen sesli ve akıcı bir iletişim kurar. "Şey...", "Hımm..." gibi insani dolgular kullanarak robotik hissi kırar.
-*   **👁️ Görsel Farkındalık (Göz):** Kameranızı kullanarak sizi görür. Yorgun olduğunuzu anlayıp dinlenmenizi önerebilir veya yeni tişörtünüzü fark edip iltifat edebilir.
-*   **💻 Ekran & Bilgisayar Hakimiyeti:**
-    *   İstediğinizde ekranınıza "ışınlanır" ve kodunuzdaki hatayı okur.
-    *   **PiP (Resim içinde Resim):** Ekran paylaşırken kamerasını kapatmaz, kendini ekranın köşesine yerleştirir (YouTuber/Streamer modu).
-    *   Fare ve klavyeyi kontrol ederek sizin yerinize işlemler yapabilir.
-*   **🧠 Hafıza ve Kişiselleştirme:** Sizi tanır, geçmiş konuşmaları hatırlar ve buna göre davranır.
-*   **🔧 Proaktif Davranış:** Sadece sorulduğunda değil, gerektiğinde kendiliğinden inisiyatif alarak konuşur (Örn: Hapşırdığınızda "Çok yaşa" der).
-*   **🔄 Kesintisiz İletişim (Auto-Reconnect):** Gemini Live API'nin 10 dakikalık oturum sınırını, kullanıcıya "ufak bir teknik aksaklık" gibi hissettirerek arka planda otomatik ve proaktif bir şekilde yeniler. Sohbet asla kesilmez.
-*   **🌐 Gelişmiş Web Gezgin:** `inspect_web_page` aracı ile web sayfalarının DOM yapısını analiz eder, sadece görünür (viewport) alanlara tıklar ve akıllı scroll navigasyonu (PageDown/Up) yapar.
+### 🔴 Offline Mod (YENİ!)
+- **Tamamen yerel çalışma** - İnternet bağlantısı gerektirmez
+- **Yerel LLM (Ollama)** - Gemma3 ile hızlı yanıtlar
+- **Yerel STT/TTS** - Whisper + Piper ile sesli iletişim
+- **Akıllı Araç Yönlendirme** - LLM tabanlı intent sınıflandırma
+
+### 🎙️ Doğal Sesli İletişim
+- Metin tabanlı değil, tamamen sesli ve akıcı iletişim
+- "Şey...", "Hımm..." gibi insani dolgular
+
+### 👁️ Görsel Farkındalık
+- **Ekran Analizi** - OCR + element detection
+- **Akıllı Tıklama** - Renk, konum ve metin ile hedef bulma
+- **Bölge Tabanlı Kontrol** - "sağ alttaki butona tıkla"
+
+### 💻 Bilgisayar Kontrolü
+- Fare ve klavye kontrolü
+- Uygulama açma/kapatma
+- Dosya oluşturma, okuma, düzenleme
+- **Akıllı Kod Üretimi** - "Flappy Bird oyunu yap" → Python kodu
+
+### 🧠 Hafıza Sistemi
+- Working Memory (kısa süreli)
+- Episodic Memory (olaylar)
+- Semantic Memory (bilgi)
 
 ## 🚀 Kurulum
 
-1.  **Depoyu Klonlayın:**
-    ```bash
-    git clone https://github.com/aToom13/Atomik.git
-    cd Atomik
-    ```
+```bash
+# Depoyu klonla
+git clone https://github.com/aToom13/Atomik.git
+cd Atomik
 
-2.  **Gereksinimleri Yükleyin:**
-    ```bash
-    pip install -r requirements.txt
-    ```
-    *(Not: `cv2`, `pyaudio`, `mss` gibi kütüphaneler sistem bağımlılıkları gerektirebilir.)*
+# Gereksinimleri yükle
+pip install -r requirements.txt
 
-3.  **Yapılandırma:**
-    *   `AtomBase/prompts/supervisor_example.txt` dosyasının adını `supervisor.txt` olarak değiştirin.
-    *   İçerisindeki `[KULLANICI ADI]` gibi alanları kendinize göre düzenleyin.
-    *   `.env` dosyanızı oluşturup API anahtarlarınızı (Gemini/OpenAI vb.) girin.
+# Ollama kur (offline mod için)
+# https://ollama.com/download
+ollama pull gemma3:4b
+```
 
-4.  **Çalıştırma:**
-    ```bash
-    python3 AtomBase/main.py
-    ```
+## ⚡ Çalıştırma
 
-## 🛠️ Nasıl Çalışır?
+### Online Mod (Gemini API)
+```bash
+python main.py
+```
 
-Proje modüler bir yapıya sahiptir:
-*   **AtomBase:** Sistemin beyni (LLM orkestrasyonu).
-*   **Audio/Video:** Görüntü işleme, ses tanıma (STT) ve konuşma (TTS) modülleri.
-*   **Tools:** Bilgisayar kontrolü, dosya işlemleri ve hafıza araçları.
+### Offline Mod (Yerel LLM)
+```bash
+python main.py --offline
+```
+
+## 📁 Proje Yapısı
+
+```
+Atomik/
+├── main.py              # Ana giriş noktası
+├── AtomBase/            # Sistem çekirdeği
+│   └── prompts/         # Sistem promptları
+├── audio/               # Ses modülleri
+│   ├── loop.py          # Online ses döngüsü
+│   └── local_loop.py    # Offline ses döngüsü
+├── core/                # Çekirdek modüller
+│   ├── offline/         # Offline sistem
+│   │   ├── tools.py     # Offline araçlar
+│   │   ├── intent.py    # Intent sınıflandırma
+│   │   └── llm_client.py # Ollama client
+│   └── connection.py    # Bağlantı yönetimi
+├── tools/               # Araç modülleri
+│   ├── vision/          # OCR, element detection
+│   ├── llm/             # LLM router
+│   ├── audio/           # STT/TTS
+│   └── memory/          # Hafıza sistemi
+└── tests/               # Test suite
+```
+
+## 🧪 Testler
+
+```bash
+python -m pytest tests/ -v
+```
+
+## 📝 Offline Araçlar
+
+| Araç          | Açıklama                         | Örnek Komut                 |
+| ------------- | -------------------------------- | --------------------------- |
+| Dosya Oluştur | LLM ile akıllı dosya/kod üretimi | "Flappy Bird oyunu yap"     |
+| Dosya Oku     | Workspace'teki dosyaları oku     | "test.py dosyasını oku"     |
+| Tıkla         | Akıllı element bulma ve tıklama  | "mavi butona tıkla"         |
+| Uygulama Aç   | Sistem uygulamalarını başlat     | "Terminal aç"               |
+| Hatırlatıcı   | Hatırlatıcı ekle/listele         | "yarın toplantıyı hatırlat" |
+| Tarih/Saat    | Güncel tarih ve saat             | "saat kaç"                  |
+
+## 🔧 Gereksinimler
+
+- Python 3.10+
+- Ollama (offline mod)
+- PyAudio, OpenCV, EasyOCR
+- PyAutoGUI (bilgisayar kontrolü)
+
+## 📜 Lisans
+
+MIT License
