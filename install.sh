@@ -212,17 +212,9 @@ install_atomik() {
     (source venv/bin/activate && pip install --upgrade pip >/dev/null 2>&1 && pip install -r requirements.txt > "$deps_log" 2>&1) &
     local pid=$!
     local elapsed=0
-    local timeout_secs=600  # 10 minute timeout
     
     while kill -0 $pid 2>/dev/null; do
         elapsed=$((elapsed + 1))
-        if [ $elapsed -ge $timeout_secs ]; then
-            kill $pid 2>/dev/null
-            error "Dependency installation timed out"
-            echo -e "${DIM}Last 10 lines of log:${NC}"
-            tail -10 "$deps_log" 2>/dev/null || echo "(no log)"
-            exit 1
-        fi
         if [ $((elapsed % 5)) -eq 0 ]; then
             printf "\r${BLUE}◐${NC} Installing dependencies... ${DIM}(${elapsed}s)${NC}  "
         fi
