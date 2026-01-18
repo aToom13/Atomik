@@ -229,6 +229,10 @@ class AudioLoop:
         self._is_reconnect = False  # True if this is a reconnection, not first connect
         self._conversation_history = []  # Recent messages for reconnect context
         
+        # UI Callbacks for GTK integration
+        self.on_transcription = None  # Callback(text: str, is_user: bool)
+        self.on_audio_output = None   # Callback(audio_level: float)
+        
         # Set global reference needed by tools
         state.active_loop = self
         
@@ -247,6 +251,14 @@ class AudioLoop:
         while True:
             msg = await self.out_queue.get()
             await self.session.send(input=msg, end_of_turn=False)
+    
+    async def send_text(self, text: str):
+        """Yazılı mesaj gönder (UI'dan çağrılır)"""
+        if self.session:
+            await self.session.send(input=text, end_of_turn=True)
+            # UI callback ile mesajı göster
+            if self.on_transcription:
+                self.on_transcription(text, is_user=True)
     
     async def listen_audio(self):
         input_device_index = None
@@ -421,6 +433,10 @@ class AudioLoop:
                                     max_text_len = term_width - prefix_len - 1
                                     display_text = user_buffer[-max_text_len:] if len(user_buffer) > max_text_len else user_buffer
                                     print(f"\033[2K\r{prefix}{display_text}", end="", flush=True)
+                                    
+                                    # UI Callback
+                                    if self.on_transcription:
+                                        self.on_transcription(delta, is_user=True)
                         
                         if response.server_content.output_transcription:
                             transcript = response.server_content.output_transcription.text
@@ -452,6 +468,10 @@ class AudioLoop:
                                     if delta:
                                         print(delta, end="", flush=True)
                                         agent_buffer += delta
+                                        
+                                        # UI Callback
+                                        if self.on_transcription:
+                                            self.on_transcription(delta, is_user=False)
                         
                         if response.server_content.turn_complete:
                             if MEMORY_AVAILABLE:
@@ -552,6 +572,18 @@ class AudioLoop:
             aec.feed_speaker(bytestream)
             # Voice Recording: Feed to recorder if active
             voice_recorder.feed_audio(bytestream)
+            
+            # UI Callback: Calculate audio level for avatar mouth
+            if self.on_audio_output:
+                count = len(bytestream) // 2
+                if count > 0:
+                    shorts = struct.unpack(f"<{count}h", bytestream)
+                    sum_squares = sum(s**2 for s in shorts)
+                    rms = math.sqrt(sum_squares / count)
+                    # Normalize to 0-1 range (typical max is ~32768)
+                    level = min(rms / 10000, 1.0)
+                    self.on_audio_output(level)
+            
             await asyncio.to_thread(stream.write, bytestream)
     
     async def proactive_check(self):

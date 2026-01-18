@@ -1,0 +1,1103 @@
+<!DOCTYPE html>
+<html lang="tr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Atomik VRM Avatar</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: #1a1a2e;
+            overflow: hidden;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        canvas {
+            display: block;
+        }
+
+        #status {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 20px;
+            font-family: 'Segoe UI', sans-serif;
+            font-size: 14px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            z-index: 100;
+        }
+
+        #status.visible {
+            opacity: 1;
+        }
+
+        #loading {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-family: 'Segoe UI', sans-serif;
+            text-align: center;
+            z-index: 50;
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-top-color: #fff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        .error {
+            color: #ff6b6b;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="loading">
+        <div class="spinner"></div>
+        <div>VRM Avatar yükleniyor...</div>
+    </div>
+    <div id="status"></div>
+
+    <!-- Import maps for ES modules -->
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/",
+            "@pixiv/three-vrm": "https://cdn.jsdelivr.net/npm/@pixiv/three-vrm@2.1.0/lib/three-vrm.module.min.js"
+        }
+    }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { VRMLoaderPlugin, VRMUtils } from '@pixiv/three-vrm';
+
+        // Configuration - relative path works with HTTP server
+        const MODEL_PATH = '/models/KI2.vrm';
+
+        // State
+        let scene, camera, renderer, controls;
+        let vrm = null;
+        let clock = new THREE.Clock();
+        let isReady = false;
+
+        // Animation state
+        let idleTime = 0;
+        let currentMouthValue = 0;
+        let targetMouthValue = 0;
+        let blinkTimer = 0;
+        let nextBlinkTime = 3 + Math.random() * 2;
+
+        // Mouse tracking with velocity
+        let mouseX = 0, mouseY = 0;
+        let targetLookX = 0, targetLookY = 0;
+        let currentLookX = 0, currentLookY = 0;
+        let velocityX = 0, velocityY = 0;
+        let lastMouseX = 0, lastMouseY = 0;
+
+        // Rotation velocity for physics
+        let rotationVelocity = 0;
+        let lastCameraAzimuth = 0;
+
+        // Current action state
+        let currentAction = 'idle';
+        let actionProgress = 0;
+
+        // === ENHANCED IDLE ANIMATION STATE ===
+        // Emotion system (affects animation intensity)
+        let emotionState = 'neutral'; // neutral, happy, curious, relaxed
+        let emotionIntensity = 0.5;
+
+        // Breathing rhythm (variable rate for realism)
+        let breathPhase = 0;
+        let breathRate = 1.0; // breaths per second
+        let breathDepth = 1.0;
+
+        // Micro-motion accumulators
+        let microMotionTime = 0;
+        let lastEarTwitchTime = 0;
+        let nextEarTwitchTime = 2 + Math.random() * 5;
+        let earTwitching = false;
+        let earTwitchProgress = 0;
+
+        // Tail momentum (for physics-based movement)
+        let tailMomentumX = 0;
+        let tailMomentumZ = 0;
+
+        // Hair/cloth physics velocity
+        let physicsVelocityX = 0;
+        let physicsVelocityY = 0;
+
+        // === ENHANCED SPRING PHYSICS SYSTEM ===
+        // Angular velocity and acceleration for realistic swinging
+        let angularVelocity = 0;
+        let angularAcceleration = 0;
+        let lastRotationAngle = 0;
+
+        // Spring physics parameters
+        const springConfig = {
+            stiffness: 0.3,      // How quickly it returns to rest
+            damping: 0.85,       // How quickly motion decays
+            mass: 1.0,           // Affects inertia
+            maxVelocity: 15,     // Clamp maximum velocity
+            sensitivity: 2.5    // How much rotation affects physics
+        };
+
+        // Per-element physics state (for cascading effects)
+        let hairPhysics = [];
+        let clothPhysics = [];
+        let tailPhysics = [];
+
+        // Initialize physics arrays (will be populated on first frame)
+        let physicsInitialized = false;
+
+        // Finger state (for micro-movements)
+        let fingerPhases = {
+            leftThumb: Math.random() * Math.PI * 2,
+            leftIndex: Math.random() * Math.PI * 2,
+            leftMiddle: Math.random() * Math.PI * 2,
+            leftRing: Math.random() * Math.PI * 2,
+            leftLittle: Math.random() * Math.PI * 2,
+            rightThumb: Math.random() * Math.PI * 2,
+            rightIndex: Math.random() * Math.PI * 2,
+            rightMiddle: Math.random() * Math.PI * 2,
+            rightRing: Math.random() * Math.PI * 2,
+            rightLittle: Math.random() * Math.PI * 2,
+        };
+
+        // Weight shift (subtle body weight changes)
+        let weightShiftPhase = 0;
+        let currentWeightSide = 0; // -1 left, 0 center, 1 right
+
+        async function init() {
+            const loadingEl = document.getElementById('loading');
+
+            try {
+                // Create scene
+                scene = new THREE.Scene();
+                scene.background = new THREE.Color(0x1a1a2e);
+
+                // Camera
+                camera = new THREE.PerspectiveCamera(30, window.innerWidth / window.innerHeight, 0.1, 100);
+                camera.position.set(0, 1.2, 3);
+
+                // Renderer
+                renderer = new THREE.WebGLRenderer({ antialias: true });
+                renderer.setSize(window.innerWidth, window.innerHeight);
+                renderer.setPixelRatio(window.devicePixelRatio);
+                renderer.outputColorSpace = THREE.SRGBColorSpace;
+                document.body.appendChild(renderer.domElement);
+
+                // Controls (optional - for debugging)
+                controls = new OrbitControls(camera, renderer.domElement);
+                controls.target.set(0, 1, 0);
+                controls.enableDamping = true;
+                controls.dampingFactor = 0.05;
+                controls.enabled = false; // Disable by default
+
+                // Lighting
+                const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+                scene.add(ambientLight);
+
+                const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+                directionalLight.position.set(1, 2, 1);
+                scene.add(directionalLight);
+
+                const backLight = new THREE.DirectionalLight(0x8888ff, 0.3);
+                backLight.position.set(-1, 1, -1);
+                scene.add(backLight);
+
+                // Load VRM
+                loadingEl.innerHTML = '<div class="spinner"></div><div>Model yükleniyor...</div>';
+
+                const loader = new GLTFLoader();
+                loader.register((parser) => new VRMLoaderPlugin(parser));
+
+                const gltf = await loader.loadAsync(MODEL_PATH);
+                vrm = gltf.userData.vrm;
+
+                if (!vrm) {
+                    throw new Error('VRM data not found in model');
+                }
+
+                // Optimize VRM
+                VRMUtils.removeUnnecessaryVertices(gltf.scene);
+                VRMUtils.removeUnnecessaryJoints(gltf.scene);
+
+                // Add to scene
+                scene.add(gltf.scene);
+
+                // Center the model and rotate to face camera
+                const box = new THREE.Box3().setFromObject(gltf.scene);
+                const center = box.getCenter(new THREE.Vector3());
+                gltf.scene.position.y -= center.y - 0.5;
+                gltf.scene.rotation.y = Math.PI; // Rotate 180° to face camera
+
+                // Enable orbit controls for mouse rotation
+                controls.enabled = true;
+
+                loadingEl.style.display = 'none';
+                isReady = true;
+
+                console.log('[Avatar] ✅ VRM loaded successfully');
+
+                // Debug: Log all bone names for animation debugging
+                console.log('[Avatar] 📦 Available bones:');
+                const tailBones = [];
+                const hairBones = [];
+                const earBones = [];
+                const clothBones = [];
+
+                gltf.scene.traverse((obj) => {
+                    const name = obj.name?.toLowerCase() || '';
+                    if (name.includes('tail') || name.includes('shippo')) {
+                        tailBones.push(obj.name);
+                    }
+                    if (name.includes('hair') || name.includes('kami')) {
+                        hairBones.push(obj.name);
+                    }
+                    if (name.includes('ear') || name.includes('mimi')) {
+                        earBones.push(obj.name);
+                    }
+                    if (name.includes('skirt') || name.includes('cloth') || name.includes('cape') || name.includes('coat')) {
+                        clothBones.push(obj.name);
+                    }
+                });
+
+                console.log('[Avatar] 🐈 Tail bones:', tailBones);
+                console.log('[Avatar] 💇 Hair bones:', hairBones);
+                console.log('[Avatar] 👂 Ear bones:', earBones);
+                console.log('[Avatar] 👗 Cloth bones:', clothBones);
+
+                showStatus('Avatar hazır!');
+
+                // Start animation loop
+                animate();
+
+                // Mouse tracking
+                document.addEventListener('mousemove', onMouseMove);
+                window.addEventListener('resize', onResize);
+
+            } catch (error) {
+                console.error('[Avatar] ❌ Error:', error);
+                loadingEl.innerHTML = `
+                    <div class="error">❌ Model yüklenemedi</div>
+                    <div style="font-size: 12px; margin-top: 10px; max-width: 300px;">${error.message}</div>
+                `;
+            }
+        }
+
+        function onMouseMove(e) {
+            mouseX = (e.clientX / window.innerWidth) * 2 - 1;
+            mouseY = -(e.clientY / window.innerHeight) * 2 + 1;
+
+            targetLookX = mouseX * 0.5;
+            targetLookY = mouseY * 0.3;
+        }
+
+        function onResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const delta = clock.getDelta();
+            idleTime += delta;
+
+            // === ENHANCED PHYSICS CALCULATION ===
+            if (controls.enabled) {
+                const currentAzimuth = controls.getAzimuthalAngle();
+                const currentPolar = controls.getPolarAngle();
+
+                // Calculate angular velocity (how fast camera is rotating)
+                const deltaAngle = currentAzimuth - lastCameraAzimuth;
+                const rawVelocity = deltaAngle / Math.max(delta, 0.001);
+
+                // Apply sensitivity and clamp
+                angularVelocity = rawVelocity * springConfig.sensitivity;
+                angularVelocity = Math.max(-springConfig.maxVelocity, Math.min(springConfig.maxVelocity, angularVelocity));
+
+                // Update rotation velocity with momentum
+                rotationVelocity = angularVelocity;
+
+                // Apply spring physics to physicsVelocityX (main swing axis)
+                const targetPhysicsVel = angularVelocity * 1.5;
+                const springForce = (targetPhysicsVel - physicsVelocityX) * springConfig.stiffness;
+                physicsVelocityX += springForce;
+                physicsVelocityX *= springConfig.damping;
+
+                // Vertical component from polar angle changes
+                const deltaPolar = currentPolar - lastRotationAngle;
+                physicsVelocityY += deltaPolar * 2;
+                physicsVelocityY *= springConfig.damping;
+
+                lastCameraAzimuth = currentAzimuth;
+                lastRotationAngle = currentPolar;
+            } else {
+                // Decay physics when not rotating
+                physicsVelocityX *= 0.92;
+                physicsVelocityY *= 0.92;
+                rotationVelocity *= 0.92;
+            }
+
+            if (isReady && vrm) {
+                update(delta);
+                vrm.update(delta);
+            }
+
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        function update(dt) {
+            // Calculate mouse velocity
+            velocityX = (mouseX - lastMouseX) / Math.max(dt, 0.001);
+            velocityY = (mouseY - lastMouseY) / Math.max(dt, 0.001);
+            lastMouseX = mouseX;
+            lastMouseY = mouseY;
+
+            // Smooth look at with better responsiveness
+            const lerpSpeed = 8 * dt;
+            currentLookX += (targetLookX - currentLookX) * Math.min(lerpSpeed, 1);
+            currentLookY += (targetLookY - currentLookY) * Math.min(lerpSpeed, 1);
+
+            // Apply look at via head bone (three-vrm v2.x compatible)
+            // Note: vrm.lookAt.target doesn't exist in v2.x, use head bone directly
+            // This is handled in applyIdleAnimation for better control
+
+            // Lip sync
+            currentMouthValue += (targetMouthValue - currentMouthValue) * Math.min(10 * dt, 1);
+            setExpression('aa', currentMouthValue);
+
+            // Blink
+            blinkTimer += dt;
+            if (blinkTimer >= nextBlinkTime) {
+                doBlink();
+                blinkTimer = 0;
+                nextBlinkTime = 2.5 + Math.random() * 3;
+            }
+
+            // Idle animation - subtle body movement
+            applyIdleAnimation(dt);
+
+            // Current action animation
+            if (currentAction !== 'idle') {
+                applyActionAnimation(dt);
+            }
+        }
+
+        function setExpression(name, value) {
+            if (vrm.expressionManager) {
+                vrm.expressionManager.setValue(name, value);
+            }
+        }
+
+        function doBlink() {
+            if (!vrm.expressionManager) return;
+
+            const duration = 150;
+            const start = performance.now();
+
+            function animateBlink(now) {
+                const p = (now - start) / duration;
+                let v = p < 0.5 ? p * 2 : 2 - p * 2;
+                if (p >= 1) v = 0;
+
+                vrm.expressionManager.setValue('blink', v);
+
+                if (p < 1) requestAnimationFrame(animateBlink);
+            }
+            requestAnimationFrame(animateBlink);
+        }
+
+        function applyIdleAnimation(dt) {
+            if (!vrm.humanoid) return;
+
+            // Update micro-motion time
+            microMotionTime += dt;
+            weightShiftPhase += dt * 0.1; // Very slow weight shift
+
+            // === ADVANCED BREATHING SYSTEM ===
+            // Variable breath rate for realism
+            breathPhase += dt * breathRate * Math.PI * 2;
+            const breathCycle = Math.sin(breathPhase);
+            const breathCycleSecondary = Math.sin(breathPhase * 0.5 + 0.3);
+
+            // Breathing affects multiple body parts
+            const breathAmount = breathCycle * 0.025 * breathDepth;
+            const breathAmountDeep = breathCycleSecondary * 0.015 * breathDepth;
+
+            const spine = vrm.humanoid.getNormalizedBoneNode('spine');
+            const chest = vrm.humanoid.getNormalizedBoneNode('chest');
+            const upperChest = vrm.humanoid.getNormalizedBoneNode('upperChest');
+            const leftShoulder = vrm.humanoid.getNormalizedBoneNode('leftShoulder');
+            const rightShoulder = vrm.humanoid.getNormalizedBoneNode('rightShoulder');
+
+            if (spine) {
+                spine.rotation.x = breathAmount * 0.5;
+                spine.rotation.z = Math.sin(idleTime * 0.3) * 0.01; // Subtle spine twist
+            }
+            if (chest) {
+                chest.rotation.x = breathAmount * 0.8;
+                // Chest expands slightly outward during inhale
+                chest.scale.set(
+                    1 + breathCycle * 0.008,
+                    1 + breathCycle * 0.005,
+                    1 + breathCycle * 0.01
+                );
+            }
+            if (upperChest) {
+                upperChest.rotation.x = breathAmount * 0.6 + breathAmountDeep;
+            }
+
+            // Shoulders rise slightly with breath
+            if (leftShoulder) {
+                leftShoulder.rotation.z = breathCycle * 0.015;
+                leftShoulder.position.y = breathCycle * 0.002;
+            }
+            if (rightShoulder) {
+                rightShoulder.rotation.z = -breathCycle * 0.015;
+                rightShoulder.position.y = breathCycle * 0.002;
+            }
+
+            // === WEIGHT SHIFT & BODY SWAY ===
+            // Natural weight shifting from foot to foot
+            currentWeightSide = Math.sin(weightShiftPhase) * 0.3;
+
+            const swayX = Math.sin(idleTime * 0.4) * 0.03 + currentWeightSide * 0.02;
+            const swayZ = Math.sin(idleTime * 0.25) * 0.015;
+            const hips = vrm.humanoid.getNormalizedBoneNode('hips');
+
+            if (hips) {
+                hips.rotation.z = swayX;
+                hips.rotation.x = swayZ + breathAmount * 0.3;
+                hips.rotation.y = Math.sin(idleTime * 0.2) * 0.015 + currentWeightSide * 0.03;
+                // Slight hip shift for weight distribution
+                hips.position.x = currentWeightSide * 0.01;
+            }
+
+            // === NATURAL ARM POSE ===
+            const leftUpperArm = vrm.humanoid.getNormalizedBoneNode('leftUpperArm');
+            const rightUpperArm = vrm.humanoid.getNormalizedBoneNode('rightUpperArm');
+            const leftLowerArm = vrm.humanoid.getNormalizedBoneNode('leftLowerArm');
+            const rightLowerArm = vrm.humanoid.getNormalizedBoneNode('rightLowerArm');
+            const leftHand = vrm.humanoid.getNormalizedBoneNode('leftHand');
+            const rightHand = vrm.humanoid.getNormalizedBoneNode('rightHand');
+
+            // Arms down naturally with subtle swing
+            const armBaseAngle = 1.1;
+            const armSwing = Math.sin(idleTime * 0.6) * 0.06;
+            const armSwingAlt = Math.sin(idleTime * 0.45) * 0.04; // Different rhythm for asymmetry
+
+            if (leftUpperArm) {
+                leftUpperArm.rotation.z = armBaseAngle + armSwing;
+                leftUpperArm.rotation.x = 0.12 + Math.sin(idleTime * 0.5) * 0.04;
+                leftUpperArm.rotation.y = Math.sin(idleTime * 0.35) * 0.02;
+            }
+            if (rightUpperArm) {
+                rightUpperArm.rotation.z = -armBaseAngle - armSwingAlt;
+                rightUpperArm.rotation.x = 0.12 + Math.sin(idleTime * 0.4) * 0.04;
+                rightUpperArm.rotation.y = Math.sin(idleTime * 0.3) * 0.02;
+            }
+
+            // Forearms with subtle movement
+            if (leftLowerArm) {
+                leftLowerArm.rotation.y = -0.2 + Math.sin(idleTime * 0.55) * 0.04;
+                leftLowerArm.rotation.x = Math.sin(idleTime * 0.4) * 0.02;
+            }
+            if (rightLowerArm) {
+                rightLowerArm.rotation.y = 0.2 + Math.sin(idleTime * 0.5) * 0.04;
+                rightLowerArm.rotation.x = Math.sin(idleTime * 0.35) * 0.02;
+            }
+
+            // Wrist rotation for natural hand pose
+            if (leftHand) {
+                leftHand.rotation.z = Math.sin(idleTime * 0.3) * 0.05;
+                leftHand.rotation.y = Math.sin(idleTime * 0.25) * 0.03;
+            }
+            if (rightHand) {
+                rightHand.rotation.z = Math.sin(idleTime * 0.28) * 0.05;
+                rightHand.rotation.y = Math.sin(idleTime * 0.22) * 0.03;
+            }
+
+            // === HEAD MOVEMENT (improved tracking) ===
+            const headIdleX = Math.sin(idleTime * 0.35) * 0.04;
+            const headIdleY = Math.sin(idleTime * 0.25) * 0.025;
+            const headTilt = Math.sin(idleTime * 0.2) * 0.02;
+
+            const neck = vrm.humanoid.getNormalizedBoneNode('neck');
+            const head = vrm.humanoid.getNormalizedBoneNode('head');
+
+            if (neck) {
+                neck.rotation.y = currentLookX * 0.35 + Math.sin(idleTime * 0.15) * 0.015;
+                neck.rotation.x = -currentLookY * 0.2;
+                neck.rotation.z = headTilt * 0.3;
+            }
+
+            if (head) {
+                head.rotation.y = currentLookX * 0.45 + headIdleX;
+                head.rotation.x = -currentLookY * 0.3 + headIdleY;
+                head.rotation.z = headTilt + currentLookX * 0.04;
+            }
+
+            // === FINGER MICRO-MOVEMENTS ===
+            animateFingers(dt);
+
+            // === CAT EAR ANIMATION ===
+            animateCatEars(dt);
+
+            // === TAIL ANIMATION ===
+            animateTail(dt);
+
+            // === HAIR/CLOTH/ACCESSORY PHYSICS ===
+            animateSecondaryMotion(dt);
+
+            // === HOOD ANIMATION ===
+            animateHood(dt);
+
+            // === BUST PHYSICS ===
+            animateBust(dt);
+        }
+
+        // === NEW: FINGER MICRO-MOVEMENTS ===
+        function animateFingers(dt) {
+            if (!vrm.humanoid) return;
+
+            // Update finger phases at different rates
+            const fingerNames = ['Thumb', 'Index', 'Middle', 'Ring', 'Little'];
+            const sides = ['left', 'right'];
+
+            sides.forEach(side => {
+                fingerNames.forEach((finger, i) => {
+                    const key = side + finger;
+                    const rate = 0.3 + i * 0.1; // Different rate for each finger
+                    fingerPhases[key] += dt * rate;
+
+                    // Get finger bones (3 segments each)
+                    for (let seg = 1; seg <= 3; seg++) {
+                        const boneName = `${side}${finger}Proximal`;
+                        const boneNameAlt = `${side}${finger}Intermediate`;
+                        const boneNameDistal = `${side}${finger}Distal`;
+
+                        let bone = null;
+                        if (seg === 1) bone = vrm.humanoid.getNormalizedBoneNode(`${side}${finger}Proximal`);
+                        else if (seg === 2) bone = vrm.humanoid.getNormalizedBoneNode(`${side}${finger}Intermediate`);
+                        else bone = vrm.humanoid.getNormalizedBoneNode(`${side}${finger}Distal`);
+
+                        if (bone) {
+                            // Subtle curl animation
+                            const curlAmount = Math.sin(fingerPhases[key] + seg * 0.5) * 0.08;
+                            const microTwitch = Math.sin(microMotionTime * 3 + i * 0.7) * 0.02;
+                            bone.rotation.x = curlAmount + microTwitch;
+                        }
+                    }
+                });
+            });
+
+            // Also animate via scene traversal for actual bone names
+            vrm.scene.traverse((obj) => {
+                const name = obj.name || '';
+
+                // Match J_Bip_L_Thumb1, J_Bip_R_Index2 etc.
+                if (name.includes('_Thumb') || name.includes('_Index') ||
+                    name.includes('_Middle') || name.includes('_Ring') || name.includes('_Little')) {
+
+                    const segMatch = name.match(/(\d)$/);
+                    const seg = segMatch ? parseInt(segMatch[1]) : 1;
+                    const isLeft = name.includes('_L_');
+                    const fingerType = name.includes('Thumb') ? 0 :
+                        name.includes('Index') ? 1 :
+                            name.includes('Middle') ? 2 :
+                                name.includes('Ring') ? 3 : 4;
+
+                    const phase = (isLeft ? 0 : Math.PI) + fingerType * 0.5;
+                    const curlAmount = Math.sin(microMotionTime * 0.4 + phase + seg * 0.3) * 0.06;
+                    const twitch = Math.sin(microMotionTime * 2.5 + fingerType * 0.8) * 0.015;
+
+                    // Apply subtle curl
+                    obj.rotation.x = (obj.rotation.x || 0) + curlAmount + twitch;
+                }
+            });
+        }
+
+        function animateCatEars(dt) {
+            if (!vrm.scene) return;
+
+            // Check for random ear twitch
+            if (idleTime - lastEarTwitchTime > nextEarTwitchTime) {
+                earTwitching = true;
+                earTwitchProgress = 0;
+                lastEarTwitchTime = idleTime;
+                nextEarTwitchTime = 2 + Math.random() * 6;
+            }
+
+            if (earTwitching) {
+                earTwitchProgress += dt * 8; // Fast twitch
+                if (earTwitchProgress >= 1) {
+                    earTwitching = false;
+                }
+            }
+
+            const twitchAmount = earTwitching ? Math.sin(earTwitchProgress * Math.PI * 4) * 0.3 : 0;
+
+            vrm.scene.traverse((obj) => {
+                const name = obj.name || '';
+
+                // Match actual bone names: J_Opt_L_CatEar, J_Opt_R_CatEar
+                if (name.includes('CatEar')) {
+                    const isLeft = name.includes('_L_');
+                    const isBase = name.includes('1_01');
+                    const isTip = name.includes('2_01') || name.includes('2_end');
+                    const phase = isLeft ? 0 : Math.PI * 0.4;
+
+                    // Base frequency movements
+                    const slowWave = Math.sin(idleTime * 1.5 + phase) * 0.08;
+                    const fastTwitch = Math.sin(idleTime * 6 + phase * 2) * 0.04;
+
+                    // React to mouse direction (curious ear movement)
+                    const mouseReaction = isLeft ?
+                        Math.max(0, -mouseX) * 0.1 :
+                        Math.max(0, mouseX) * 0.1;
+
+                    // Apply rotation
+                    const multiplier = isBase ? 1 : 0.7;
+                    obj.rotation.z = (isLeft ? 1 : -1) * (slowWave + fastTwitch + twitchAmount + mouseReaction) * multiplier;
+                    obj.rotation.x = Math.sin(idleTime * 2 + phase) * 0.08 * multiplier - mouseY * 0.05;
+
+                    // Ear fold for tip segments
+                    if (isTip) {
+                        obj.rotation.y = Math.sin(idleTime * 3 + phase) * 0.03;
+                    }
+                }
+            });
+        }
+
+        function animateTail(dt) {
+            if (!vrm.scene) return;
+
+            // === ENHANCED TAIL PHYSICS ===
+            // Strong spring response to camera rotation
+            const physicsForce = physicsVelocityX * 0.8; // Main swing force
+            const verticalForce = physicsVelocityY * 0.3;
+
+            // Update tail momentum with spring physics
+            const targetMomentumX = physicsForce;
+            const springForce = (targetMomentumX - tailMomentumX) * 0.4;
+            tailMomentumX += springForce;
+            tailMomentumX *= 0.88; // Slower decay for more swing
+
+            // Vertical momentum
+            tailMomentumZ += (verticalForce - tailMomentumZ) * 0.3;
+            tailMomentumZ *= 0.88;
+
+            // Clamp momentum (higher limits for more dramatic movement)
+            tailMomentumX = Math.max(-3, Math.min(3, tailMomentumX));
+            tailMomentumZ = Math.max(-1.5, Math.min(1.5, tailMomentumZ));
+
+            let tailIndex = 0;
+            vrm.scene.traverse((obj) => {
+                const name = obj.name || '';
+
+                // Match actual bone names: J_Opt_C_FoxTail1_01 through J_Opt_C_FoxTail5_01
+                if (name.includes('FoxTail') || name.includes('Tail')) {
+                    // Extract segment number for cascading motion
+                    const segmentMatch = name.match(/Tail(\d)/);
+                    const segment = segmentMatch ? parseInt(segmentMatch[1]) : tailIndex;
+
+                    // Cascading delay - later segments follow earlier ones with more delay
+                    const segmentDelay = segment * 0.5;
+                    const tipMultiplier = 1 + segment * 0.8; // Much more movement at tip
+
+                    // Organic base wave motion
+                    const primaryWave = Math.sin(idleTime * 2.5 + segmentDelay) * 0.15;
+                    const secondaryWave = Math.sin(idleTime * 4 + segmentDelay * 1.2) * 0.08;
+
+                    // Physics-driven swing (MUCH stronger)
+                    const physicsSwingZ = tailMomentumX * tipMultiplier * 0.6;
+                    const physicsSwingX = Math.abs(tailMomentumX) * tipMultiplier * 0.2;
+                    const physicsSwingY = tailMomentumZ * tipMultiplier * 0.4;
+
+                    // Secondary wobble from momentum
+                    const wobble = Math.sin(idleTime * 8 + segment) * Math.abs(tailMomentumX) * 0.15;
+
+                    // Apply rotations with strong physics influence
+                    obj.rotation.z = primaryWave * tipMultiplier + physicsSwingZ + wobble;
+                    obj.rotation.x = secondaryWave * tipMultiplier + physicsSwingX;
+                    obj.rotation.y = Math.sin(idleTime * 3 + segmentDelay) * 0.1 * tipMultiplier + physicsSwingY;
+
+                    tailIndex++;
+                }
+            });
+        }
+
+        function animateSecondaryMotion(dt) {
+            if (!vrm.scene) return;
+
+            // === ENHANCED PHYSICS FOR HAIR & CLOTH ===
+            // Use the global physics velocity directly (already calculated in animate())
+            const swingForceX = physicsVelocityX;
+            const swingForceY = physicsVelocityY;
+
+            // Higher clamp for more dramatic movement
+            const clampedSwing = Math.max(-8, Math.min(8, swingForceX));
+            const clampedSwingY = Math.max(-4, Math.min(4, swingForceY));
+
+            vrm.scene.traverse((obj) => {
+                const name = obj.name || '';
+
+                // Hair bones: J_Sec_Hair
+                if (name.includes('J_Sec_Hair') || name.includes('Hair')) {
+                    const segmentMatch = name.match(/Hair(\d)/);
+                    const segment = segmentMatch ? parseInt(segmentMatch[1]) : 1;
+                    const strandMatch = name.match(/_(\d+)$/);
+                    const strand = strandMatch ? parseInt(strandMatch[1]) : 0;
+
+                    const delay = segment * 0.3 + strand * 0.15;
+                    const segmentMultiplier = 1 + segment * 0.6; // More multiplier for outer segments
+
+                    // Natural hair sway (reduced base motion)
+                    const primarySway = Math.sin(idleTime * 1.8 + delay) * 0.05;
+                    const secondarySway = Math.sin(idleTime * 3 + delay * 1.2) * 0.03;
+
+                    // STRONG physics response to rotation
+                    const physicsSwingZ = clampedSwing * 0.12 * segmentMultiplier;
+                    const physicsSwingX = clampedSwingY * 0.08 * segmentMultiplier;
+
+                    // Secondary wobble for realism
+                    const wobbleFreq = 6 + segment * 2;
+                    const wobble = Math.sin(idleTime * wobbleFreq + strand) * Math.abs(clampedSwing) * 0.03;
+
+                    // Gravity influence (hair wants to hang down)
+                    const gravityPull = segment * 0.015;
+
+                    obj.rotation.z = primarySway + secondarySway + physicsSwingZ + wobble;
+                    obj.rotation.x = gravityPull + physicsSwingX;
+                    obj.rotation.y = Math.sin(idleTime * 2.5 + delay) * 0.02 * segmentMultiplier + clampedSwing * 0.03;
+                }
+
+                // Coat/Skirt bones: J_Sec_L_CoatSkirt, J_Sec_R_CoatSkirt
+                if (name.includes('CoatSkirt') || name.includes('Skirt')) {
+                    const isLeft = name.includes('_L_');
+                    const isFront = name.includes('Front');
+                    const isBack = name.includes('Back');
+                    const isSide = name.includes('Side');
+
+                    // Extract segment number
+                    const segmentMatch = name.match(/_(0?\d)$/);
+                    const segment = segmentMatch ? parseInt(segmentMatch[1]) : 1;
+                    const delay = segment * 0.2;
+                    const tipMultiplier = 1 + segment * 0.5; // More movement at tips
+
+                    // Base sway with different behavior for different parts
+                    let baseSwayAmount = 0.08;
+                    if (isFront) baseSwayAmount *= 0.5; // Front moves less
+                    if (isBack) baseSwayAmount *= 1.5; // Back moves more
+                    if (isSide) baseSwayAmount *= 1.2;
+
+                    const primarySway = Math.sin(idleTime * 1.5 + delay) * baseSwayAmount;
+                    const secondarySway = Math.sin(idleTime * 2.8 + delay * 1.1) * 0.04;
+
+                    // STRONG physics response
+                    const physicsSwingZ = clampedSwing * 0.15 * tipMultiplier;
+                    const physicsSwingX = Math.abs(clampedSwing) * 0.06 * tipMultiplier;
+
+                    // Wobble from momentum
+                    const wobble = Math.sin(idleTime * 7 + segment * 0.5) * Math.abs(clampedSwing) * 0.04;
+
+                    // Inertia effect (back of skirt swings opposite initially)
+                    const inertiaEffect = isBack ? -clampedSwing * 0.08 * segment * 0.1 : 0;
+
+                    obj.rotation.z = (isLeft ? 1 : -1) * (primarySway + secondarySway + physicsSwingZ + wobble + inertiaEffect) * tipMultiplier;
+                    obj.rotation.x = Math.sin(idleTime * 1.2 + delay) * 0.04 * tipMultiplier + physicsSwingX;
+
+                    // Side panels have more lateral movement
+                    if (isSide) {
+                        obj.rotation.y = Math.sin(idleTime * 2 + delay) * 0.03 * tipMultiplier + clampedSwing * 0.05;
+                    }
+                }
+
+                // Generic accessories
+                if (name.includes('accessory') || name.includes('pendant') || name.includes('earing')) {
+                    const swing = Math.sin(idleTime * 2 + (obj.id || 0) * 0.3) * 0.08;
+                    const physicsSwing = clampedSwing * 0.1;
+                    const wobble = Math.sin(idleTime * 5) * Math.abs(clampedSwing) * 0.03;
+                    obj.rotation.z = swing + physicsSwing + wobble;
+                    obj.rotation.x = Math.sin(idleTime * 3 + (obj.id || 0) * 0.2) * 0.04 + Math.abs(clampedSwing) * 0.02;
+                }
+            });
+        }
+
+        // === NEW: HOOD ANIMATION ===
+        function animateHood(dt) {
+            if (!vrm.scene) return;
+
+            // Use enhanced physics velocity
+            const clampedSwing = Math.max(-8, Math.min(8, physicsVelocityX));
+
+            vrm.scene.traverse((obj) => {
+                const name = obj.name || '';
+
+                // Hood main bone: J_Sec_C_Hood
+                if (name.includes('Hood') && !name.includes('String')) {
+                    const sway = Math.sin(idleTime * 1.2) * 0.03;
+                    const physicsResponse = clampedSwing * 0.08;
+                    const wobble = Math.sin(idleTime * 4) * Math.abs(clampedSwing) * 0.02;
+                    obj.rotation.z = sway + physicsResponse + wobble;
+                    obj.rotation.x = Math.sin(idleTime * 1.8) * 0.02 + Math.abs(clampedSwing) * 0.03;
+                }
+
+                // Hood strings: J_Sec_L_HoodString, J_Sec_R_HoodString
+                if (name.includes('HoodString')) {
+                    const isLeft = name.includes('_L_');
+                    const segmentMatch = name.match(/(\d)$/);
+                    const segment = segmentMatch ? parseInt(segmentMatch[1]) : 1;
+
+                    const delay = segment * 0.25;
+                    const tipMultiplier = 1 + segment * 0.8;
+
+                    // Pendulum-like swing with STRONG physics
+                    const swing = Math.sin(idleTime * 2.5 + delay) * 0.1 * tipMultiplier;
+                    const secondarySwing = Math.sin(idleTime * 4 + delay * 1.2) * 0.06 * tipMultiplier;
+                    const physicsSwing = clampedSwing * 0.15 * tipMultiplier;
+                    const wobble = Math.sin(idleTime * 6 + segment) * Math.abs(clampedSwing) * 0.05;
+
+                    obj.rotation.z = (isLeft ? 1 : -1) * (swing + secondarySwing + physicsSwing + wobble);
+                    obj.rotation.x = Math.sin(idleTime * 2 + delay) * 0.05 * tipMultiplier + Math.abs(clampedSwing) * 0.04;
+                }
+            });
+        }
+
+        // === NEW: BUST PHYSICS ===
+        function animateBust(dt) {
+            if (!vrm.scene) return;
+
+            const breathCycle = Math.sin(breathPhase);
+            const clampedVel = Math.max(-2, Math.min(2, physicsVelocityX));
+
+            vrm.scene.traverse((obj) => {
+                const name = obj.name || '';
+
+                // Bust bones: J_Sec_L_Bust, J_Sec_R_Bust
+                if (name.includes('Bust') || name.includes('bust')) {
+                    const isLeft = name.includes('_L_');
+                    const segmentMatch = name.match(/(\d)$/);
+                    const segment = segmentMatch ? parseInt(segmentMatch[1]) : 1;
+
+                    // Very subtle jiggle physics
+                    const jiggle = Math.sin(idleTime * 4 + (isLeft ? 0 : 0.5)) * 0.015;
+                    const breathInfluence = breathCycle * 0.02;
+                    const physicsJiggle = clampedVel * 0.02;
+
+                    // Only apply subtle movement
+                    obj.rotation.x = breathInfluence + jiggle * segment;
+                    obj.rotation.y = (isLeft ? 1 : -1) * physicsJiggle * 0.5;
+                    obj.rotation.z = (isLeft ? 1 : -1) * jiggle * 0.3;
+                }
+            });
+        }
+
+        function applyActionAnimation(dt) {
+            actionProgress += dt;
+
+            switch (currentAction) {
+                case 'wave':
+                    animateWave(actionProgress);
+                    break;
+                case 'jump':
+                    animateJump(actionProgress);
+                    break;
+                case 'dance':
+                    animateDance(actionProgress);
+                    break;
+                case 'nod':
+                    animateNod(actionProgress);
+                    break;
+            }
+
+            // Check if action is complete
+            const durations = { wave: 2, jump: 1, dance: 3, nod: 1 };
+            if (actionProgress >= (durations[currentAction] || 2)) {
+                currentAction = 'idle';
+                actionProgress = 0;
+            }
+        }
+
+        function animateWave(t) {
+            if (!vrm.humanoid) return;
+
+            const rightArm = vrm.humanoid.getNormalizedBoneNode('rightUpperArm');
+            const rightForearm = vrm.humanoid.getNormalizedBoneNode('rightLowerArm');
+            const rightHand = vrm.humanoid.getNormalizedBoneNode('rightHand');
+
+            // Raise arm
+            const raiseProgress = Math.min(t / 0.3, 1);
+            if (rightArm) {
+                rightArm.rotation.z = -Math.PI * 0.7 * raiseProgress;
+                rightArm.rotation.x = -0.3 * raiseProgress;
+            }
+            if (rightForearm) {
+                rightForearm.rotation.y = 0.5 * raiseProgress;
+            }
+
+            // Wave motion
+            if (t > 0.3 && t < 1.7) {
+                const waveT = (t - 0.3) * 5;
+                if (rightHand) {
+                    rightHand.rotation.z = Math.sin(waveT) * 0.4;
+                }
+            }
+
+            // Lower arm
+            if (t > 1.7) {
+                const lowerProgress = (t - 1.7) / 0.3;
+                if (rightArm) {
+                    rightArm.rotation.z = -Math.PI * 0.7 * (1 - lowerProgress);
+                    rightArm.rotation.x = -0.3 * (1 - lowerProgress);
+                }
+            }
+
+            // Happy expression
+            setExpression('happy', Math.sin(t * 2) * 0.5 + 0.5);
+        }
+
+        function animateJump(t) {
+            if (!vrm.humanoid) return;
+
+            const hips = vrm.humanoid.getNormalizedBoneNode('hips');
+            if (!hips) return;
+
+            // Jump curve
+            const jumpHeight = 0.3;
+            let y = 0;
+
+            if (t < 0.2) {
+                // Crouch
+                y = -0.1 * (t / 0.2);
+            } else if (t < 0.6) {
+                // Jump up and down
+                const jumpT = (t - 0.2) / 0.4;
+                y = -0.1 + Math.sin(jumpT * Math.PI) * jumpHeight;
+            } else {
+                // Land
+                y = 0;
+            }
+
+            hips.position.y = y;
+
+            // Arms movement
+            const leftArm = vrm.humanoid.getNormalizedBoneNode('leftUpperArm');
+            const rightArm = vrm.humanoid.getNormalizedBoneNode('rightUpperArm');
+            const armRaise = t < 0.6 ? Math.sin((t / 0.6) * Math.PI) * 0.5 : 0;
+            if (leftArm) leftArm.rotation.z = armRaise;
+            if (rightArm) rightArm.rotation.z = -armRaise;
+
+            setExpression('happy', t < 0.6 ? 0.8 : 0);
+        }
+
+        function animateDance(t) {
+            if (!vrm.humanoid) return;
+
+            const hips = vrm.humanoid.getNormalizedBoneNode('hips');
+            const spine = vrm.humanoid.getNormalizedBoneNode('spine');
+            const leftArm = vrm.humanoid.getNormalizedBoneNode('leftUpperArm');
+            const rightArm = vrm.humanoid.getNormalizedBoneNode('rightUpperArm');
+
+            // Body bounce
+            if (hips) {
+                hips.position.y = Math.abs(Math.sin(t * 8)) * 0.05;
+                hips.rotation.z = Math.sin(t * 4) * 0.1;
+            }
+
+            // Spine movement
+            if (spine) {
+                spine.rotation.y = Math.sin(t * 4) * 0.15;
+            }
+
+            // Arm swing
+            if (leftArm) {
+                leftArm.rotation.z = 0.3 + Math.sin(t * 4) * 0.3;
+                leftArm.rotation.x = Math.sin(t * 4 + 1) * 0.2;
+            }
+            if (rightArm) {
+                rightArm.rotation.z = -0.3 - Math.sin(t * 4) * 0.3;
+                rightArm.rotation.x = Math.sin(t * 4) * 0.2;
+            }
+
+            setExpression('happy', 0.7);
+        }
+
+        function animateNod(t) {
+            if (!vrm.humanoid) return;
+
+            const head = vrm.humanoid.getNormalizedBoneNode('head');
+            if (head) {
+                head.rotation.x = Math.sin(t * 8) * 0.15;
+            }
+        }
+
+        // === Public API ===
+        function setMouthOpen(val) {
+            targetMouthValue = Math.max(0, Math.min(1, val));
+        }
+
+        function playGesture(name, intensity = 0.7) {
+            console.log('[Avatar] 🎭 Gesture:', name);
+            currentAction = name;
+            actionProgress = 0;
+        }
+
+        function showStatus(text) {
+            const s = document.getElementById('status');
+            s.textContent = text;
+            s.classList.add('visible');
+            setTimeout(() => s.classList.remove('visible'), 3000);
+        }
+
+        // Expose API globally
+        window.avatarAPI = {
+            setMouth: setMouthOpen,
+            gesture: playGesture,
+            blink: doBlink,
+            status: showStatus,
+            isReady: () => isReady
+        };
+        window.setMouth = setMouthOpen;
+        window.playGesture = playGesture;
+
+        // Start
+        init();
+    </script>
+</body>
+
+</html>

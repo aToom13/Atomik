@@ -14,3 +14,7 @@ chromadb
 
 # MCP Client
 mcp>=1.25.0
+
+# Avatar Mode (GTK + Live2D)
+PyGObject>=3.42.0
+live2d-py>=0.3.0
