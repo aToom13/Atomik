@@ -205,18 +205,30 @@ install_atomik() {
     
     # Install dependencies
     step "Installing Python dependencies..."
-    echo -e "${DIM}    (This may take 2-5 minutes)${NC}"
+    echo -e "${DIM}    (This may take 5-10 minutes on first install)${NC}"
+    echo -e "${DIM}    Heavy packages: chromadb, PyGObject may take a while to compile${NC}"
+    echo ""
     
     local deps_log="/tmp/atomik_deps_$$.log"
     
-    (source venv/bin/activate && pip install --upgrade pip >/dev/null 2>&1 && pip install -r requirements.txt > "$deps_log" 2>&1) &
+    # Run pip install with progress output
+    (source venv/bin/activate && pip install --upgrade pip >/dev/null 2>&1 && pip install -r requirements.txt 2>&1 | tee "$deps_log") &
     local pid=$!
     local elapsed=0
+    local last_pkg=""
     
     while kill -0 $pid 2>/dev/null; do
         elapsed=$((elapsed + 1))
-        if [ $((elapsed % 5)) -eq 0 ]; then
-            printf "\r${BLUE}◐${NC} Installing dependencies... ${DIM}(${elapsed}s)${NC}  "
+        
+        # Try to get current package from log
+        if [ -f "$deps_log" ]; then
+            local current_pkg=$(grep -oP "(Collecting|Installing|Building) \K[^ ]+" "$deps_log" 2>/dev/null | tail -1)
+            if [ -n "$current_pkg" ] && [ "$current_pkg" != "$last_pkg" ]; then
+                last_pkg="$current_pkg"
+                printf "\r${BLUE}◐${NC} Installing: ${CYAN}%s${NC} ${DIM}(${elapsed}s)${NC}            " "$current_pkg"
+            elif [ $((elapsed % 10)) -eq 0 ]; then
+                printf "\r${BLUE}◐${NC} Installing dependencies... ${DIM}(${elapsed}s)${NC}  "
+            fi
         fi
         sleep 1
     done
